@@ -19,5 +19,5 @@ pub mod title_bar;
 pub mod updater;
 pub mod widgets;
 
-mod snap_detail_state;
-mod snap_details;
+mod package_detail_state;
+mod package_details;

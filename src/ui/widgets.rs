@@ -7,8 +7,7 @@ use gpui_kit::component::{
 };
 use gpui_kit::prelude::*;
 use gpui_kit::{
-    deferred, div, px, relative, AnyElement, App, ClickEvent, FontWeight, Hsla, IntoElement,
-    SharedString, Window,
+    deferred, div, px, relative, AnyElement, App, ClickEvent, FontWeight, IntoElement, Window,
 };
 
 use crate::theme::{self, border, elev2, text, text_dim, text_faint};
@@ -111,24 +110,6 @@ pub(super) fn menu_item(
         )
 }
 
-pub(super) fn tag(label: &'static str, color: Hsla) -> impl IntoElement {
-    div()
-        .px(px(8.))
-        .py(px(2.))
-        .rounded(px(6.))
-        .border_1()
-        .border_color(border())
-        .bg(elev2())
-        .text_color(text_dim())
-        .flex()
-        .items_center()
-        .gap(px(6.))
-        .child(div().size(px(5.)).rounded_full().bg(color))
-        .text_size(px(12.))
-        .font_weight(FontWeight::SEMIBOLD)
-        .child(label)
-}
-
 pub(super) fn empty_state() -> impl IntoElement {
     div()
         .flex()
@@ -203,31 +184,6 @@ pub(super) fn button(
         ButtonStyle::Danger => button.danger(),
         ButtonStyle::Update => button.primary(),
     }
-}
-
-/// One label/value line in the inline detail panel or a plan summary.
-pub(super) fn kv_row(
-    label: impl Into<SharedString>,
-    value: impl Into<SharedString>,
-) -> impl IntoElement {
-    let (label, value): (SharedString, SharedString) = (label.into(), value.into());
-    div()
-        .flex()
-        .items_start()
-        .justify_between()
-        .gap(px(12.))
-        .py(px(8.))
-        .border_b_1()
-        .border_color(border())
-        .child(
-            div()
-                .flex_none()
-                .w(px(120.))
-                .text_size(px(13.))
-                .text_color(text_faint())
-                .child(label),
-        )
-        .child(div().flex_1().text_size(px(14.)).child(value))
 }
 
 pub(super) fn plan_rows(rows: Vec<(&'static str, String)>) -> impl IntoElement {

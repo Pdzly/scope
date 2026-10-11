@@ -9,7 +9,7 @@ pub const DETAIL_LABEL_WIDTH: f32 = 144.;
 pub const DETAIL_ROW_PADDING: f32 = 9.;
 pub const DETAIL_ROW_GAP: f32 = 16.;
 
-use crate::domain::package::{AppKind, InstalledPackage, PackageSource};
+use crate::domain::package::{InstalledPackage, PackageSource};
 
 pub fn source_color(source: PackageSource) -> Hsla {
     match source {
@@ -22,15 +22,6 @@ pub fn source_color(source: PackageSource) -> Hsla {
     .into()
 }
 
-pub fn kind_color(kind: AppKind) -> Hsla {
-    match kind {
-        AppKind::Gui => rgb(0x2f8fa3),
-        AppKind::Cli => rgb(0xa97b2e),
-        AppKind::Unknown => rgb(0x6b625e),
-    }
-    .into()
-}
-
 pub fn source_label(source: PackageSource) -> &'static str {
     match source {
         PackageSource::Apt => "APT",
@@ -38,14 +29,6 @@ pub fn source_label(source: PackageSource) -> &'static str {
         PackageSource::Flatpak => "Flatpak",
         PackageSource::AppImage => "AppImage",
         PackageSource::Desktop => "Desktop",
-    }
-}
-
-pub fn kind_label(kind: AppKind) -> &'static str {
-    match kind {
-        AppKind::Gui => "GUI",
-        AppKind::Cli => "CLI",
-        AppKind::Unknown => "Unknown",
     }
 }
 
@@ -176,11 +159,11 @@ pub fn hover_surface() -> Hsla {
 pub fn selected_surface() -> Hsla {
     rgb(0x3d2529).into()
 }
-/// A quieter burgundy surface for the expanded Snap app and its breakdown.
-pub fn snap_surface() -> Hsla {
+/// A quieter burgundy surface for the expanded app and its breakdown.
+pub fn detail_surface() -> Hsla {
     rgb(0x332426).into()
 }
-pub fn snap_hover_surface() -> Hsla {
+pub fn detail_hover_surface() -> Hsla {
     rgb(0x3a2a2c).into()
 }
 pub fn border_hover() -> Hsla {
@@ -350,12 +333,5 @@ mod tests {
         assert_eq!(source_label(PackageSource::Flatpak), "Flatpak");
         assert_eq!(source_label(PackageSource::AppImage), "AppImage");
         assert_eq!(source_label(PackageSource::Desktop), "Desktop");
-    }
-
-    #[test]
-    fn kind_label_covers_every_kind() {
-        assert_eq!(kind_label(AppKind::Gui), "GUI");
-        assert_eq!(kind_label(AppKind::Cli), "CLI");
-        assert_eq!(kind_label(AppKind::Unknown), "Unknown");
     }
 }

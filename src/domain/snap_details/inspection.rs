@@ -1,10 +1,8 @@
 //! Bounded inspection with progress updates for browsing and a fresh final result.
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, OnceLock};
-use tokio::sync::Semaphore;
-
 use super::{add_snapshots, api, data, from_revisions, unavailable, valid_name, SnapDetails};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 pub struct InspectionUpdate {
     pub details: SnapDetails,
@@ -25,14 +23,7 @@ pub async fn inspect_progressive(
     if !valid_name(name) {
         return unavailable("Invalid Snap instance name");
     }
-    static WORKERS: OnceLock<Arc<Semaphore>> = OnceLock::new();
-    let workers = WORKERS.get_or_init(|| Arc::new(Semaphore::new(2)));
-    let permit = tokio::time::timeout(
-        std::time::Duration::from_secs(1),
-        workers.clone().acquire_owned(),
-    )
-    .await;
-    let Ok(Ok(permit)) = permit else {
+    let Some(permit) = crate::domain::package_details::inspection_permit().await else {
         return unavailable("Snap inspection is busy. Reopen details to try again.");
     };
     let permit = Arc::new(permit);

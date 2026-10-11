@@ -17,6 +17,11 @@ use std::sync::Arc;
 
 pub use parser::DesktopApp;
 
+/// Parse one already discovered launcher without executing its command.
+pub(crate) fn parse_launcher(path: &Path) -> Option<DesktopApp> {
+    parser::parse(path.file_stem()?.to_str()?, path)
+}
+
 /// Directories whose `.desktop` files we ignore (locale, screensavers, etc.).
 const BLACKLISTED_DIRS: &[&str] = &[
     "/usr/share/locale",

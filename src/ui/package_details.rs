@@ -1,4 +1,4 @@
-//! Lazy inspection wiring and the Snap removal breakdown shared with previews.
+//! Shared lazy inspection and source-aware type/path/size breakdown.
 
 use futures::{channel::mpsc, StreamExt};
 use gpui_kit::assets::IconName;
@@ -8,13 +8,13 @@ use gpui_kit::{div, px, AnyElement, Context, FontWeight};
 
 use crate::backend;
 use crate::domain::package::PackageSource;
-use crate::domain::snap_details::{DetailItem, RemovalEffect, SnapDetails};
+use crate::domain::package_details::{DetailEffect, DetailItem, PackageDetails};
 use crate::theme;
 
 use super::app_view::ScopeApp;
 
 impl ScopeApp {
-    pub(super) fn load_snap_details(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn load_package_details(&mut self, cx: &mut Context<Self>) {
         let pkg = self
             .selected_key
             .as_ref()
@@ -26,11 +26,11 @@ impl ScopeApp {
                     .find(|pkg| &pkg.key == key)
             })
             .cloned();
-        let Some(pkg) = pkg.filter(|pkg| pkg.source == PackageSource::Snap) else {
-            self.snap_details.cancel();
+        let Some(pkg) = pkg else {
+            self.package_details.cancel();
             return;
         };
-        let Some(request) = self.snap_details.begin(&pkg) else {
+        let Some(request) = self.package_details.begin(&pkg) else {
             return;
         };
         cx.spawn(async move |this, cx| {
@@ -38,10 +38,10 @@ impl ScopeApp {
                 return;
             }
             let (tx, mut rx) = mpsc::unbounded();
-            backend::spawn_snap_details(pkg.package_id.clone(), request.cancel, tx);
+            backend::spawn_package_details(pkg.clone(), request.cancel, tx);
             while let Some(update) = rx.next().await {
                 this.update(cx, |this, cx| {
-                    if this.snap_details.accept(
+                    if this.package_details.accept(
                         request.generation,
                         &pkg,
                         update.details,
@@ -66,7 +66,7 @@ impl ScopeApp {
 }
 
 /// Compact type/path/size rows. Markers describe effects and are not controls.
-pub(super) fn breakdown(details: Option<&SnapDetails>) -> AnyElement {
+pub(super) fn breakdown(details: Option<&PackageDetails>, source: PackageSource) -> AnyElement {
     let mut content = div()
         .flex()
         .flex_col()
@@ -74,9 +74,10 @@ pub(super) fn breakdown(details: Option<&SnapDetails>) -> AnyElement {
         .text_color(theme::text());
     if let Some(details) = details {
         for (effect, heading) in [
-            (RemovalEffect::RemovedBySnap, ""),
-            (RemovalEffect::Kept, "Kept after uninstall"),
-            (RemovalEffect::Unverified, "Needs review"),
+            (DetailEffect::Removed, ""),
+            (DetailEffect::Kept, "Kept after uninstall"),
+            (DetailEffect::Unverified, "Needs review"),
+            (DetailEffect::Informational, ""),
         ] {
             if details.items.iter().any(|item| item.effect == effect) {
                 content = content.child(
@@ -106,11 +107,6 @@ pub(super) fn breakdown(details: Option<&SnapDetails>) -> AnyElement {
             }
         }
         for warning in &details.warnings {
-            if warning == crate::domain::snap_details::NO_SNAPSHOTS_NOTE
-                || warning == crate::domain::snap_details::CLASSIC_COVERAGE_NOTE
-            {
-                continue;
-            }
             content = content.child(
                 div()
                     .text_size(px(12.))
@@ -120,60 +116,56 @@ pub(super) fn breakdown(details: Option<&SnapDetails>) -> AnyElement {
             );
         }
     } else {
-        content = content.child(loading_rows());
+        content = content.child(loading_rows(source));
     }
     content.into_any_element()
 }
 
-fn loading_rows() -> AnyElement {
+fn loading_rows(source: PackageSource) -> AnyElement {
     div()
         .flex()
         .flex_col()
         .gap(px(3.))
-        .children(
-            ["Application", "Older revisions", "User data", "System data"]
-                .into_iter()
-                .map(|label| {
+        .children(loading_labels(source).iter().copied().map(|label| {
+            div()
+                .flex()
+                .items_center()
+                .gap(px(theme::DETAIL_ROW_GAP))
+                .py(px(theme::DETAIL_ROW_PADDING))
+                .text_size(px(13.))
+                .line_height(px(18.))
+                .child(
                     div()
-                        .flex()
-                        .items_center()
-                        .gap(px(theme::DETAIL_ROW_GAP))
-                        .py(px(theme::DETAIL_ROW_PADDING))
-                        .text_size(px(13.))
-                        .line_height(px(18.))
-                        .child(
-                            div()
-                                .flex_none()
-                                .w(px(theme::DETAIL_LABEL_WIDTH))
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .child(label),
-                        )
-                        .child(
-                            div().flex_1().min_w(px(0.)).child(
-                                div()
-                                    .h(px(8.))
-                                    .w_full()
-                                    .max_w(px(300.))
-                                    .rounded(px(4.))
-                                    .bg(theme::border()),
-                            ),
-                        )
-                        .child(
-                            div()
-                                .flex_none()
-                                .w(px(80.))
-                                .text_right()
-                                .text_size(px(12.))
-                                .text_color(theme::text_dim())
-                                .child("…"),
-                        )
-                }),
-        )
+                        .flex_none()
+                        .w(px(theme::DETAIL_LABEL_WIDTH))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .child(label),
+                )
+                .child(
+                    div().flex_1().min_w(px(0.)).child(
+                        div()
+                            .h(px(8.))
+                            .w_full()
+                            .max_w(px(300.))
+                            .rounded(px(4.))
+                            .bg(theme::border()),
+                    ),
+                )
+                .child(
+                    div()
+                        .flex_none()
+                        .w(px(80.))
+                        .text_right()
+                        .text_size(px(12.))
+                        .text_color(theme::text_dim())
+                        .child("…"),
+                )
+        }))
         .into_any_element()
 }
 
 /// Compact estimate of managed items, not net disk space freed.
-pub(super) fn removal_summary(details: Option<&SnapDetails>) -> String {
+pub(super) fn removal_summary(details: Option<&PackageDetails>) -> String {
     let Some(details) = details else {
         return "Measuring removal…".into();
     };
@@ -189,7 +181,7 @@ pub(super) fn removal_summary(details: Option<&SnapDetails>) -> String {
 }
 
 fn detail_row(item: &DetailItem) -> AnyElement {
-    let pending = item.size.note.as_deref() == Some(crate::domain::snap_details::MEASURING_NOTE);
+    let pending = item.size.note.as_deref() == Some(crate::domain::package_details::MEASURING_NOTE);
     let size = match item.size.bytes {
         Some(bytes) if item.size.complete => measured_size(bytes),
         Some(bytes) => format!("{}+", measured_size(bytes)),
@@ -197,16 +189,15 @@ fn detail_row(item: &DetailItem) -> AnyElement {
         None => "Unknown".into(),
     };
     let icon = match item.effect {
-        RemovalEffect::RemovedBySnap => None,
-        RemovalEffect::Kept => Some(IconName::Minus),
-        RemovalEffect::Unverified => Some(IconName::CircleAlert),
+        DetailEffect::Removed | DetailEffect::Informational => None,
+        DetailEffect::Kept => Some(IconName::Minus),
+        DetailEffect::Unverified => Some(IconName::CircleAlert),
     };
-    let location = item.location.as_deref().unwrap_or(&item.label);
-    let location = if item.label.starts_with("Recovery snapshot") {
-        format!("{location} · {}", item.label)
-    } else {
-        location.to_owned()
-    };
+    let location = item
+        .location
+        .as_deref()
+        .unwrap_or("Not identified")
+        .to_owned();
     let mut path = div().flex_1().min_w(px(0.)).flex().flex_col().child(
         div()
             .text_size(px(12.))
@@ -224,7 +215,7 @@ fn detail_row(item: &DetailItem) -> AnyElement {
                     .child(note.clone()),
             );
         }
-    } else if item.effect == RemovalEffect::Unverified {
+    } else if item.effect == DetailEffect::Unverified {
         path = path.child(
             div()
                 .text_size(px(11.))
@@ -257,7 +248,7 @@ fn detail_row(item: &DetailItem) -> AnyElement {
                         .flex_1()
                         .min_w(px(0.))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .child(item_kind(item)),
+                        .child(item.label.clone()),
                 ),
         )
         .child(path)
@@ -274,26 +265,20 @@ fn detail_row(item: &DetailItem) -> AnyElement {
         .into_any_element()
 }
 
-fn item_kind(item: &DetailItem) -> &'static str {
-    if item.label.starts_with("Active revision") {
-        "Application"
-    } else if item.label.starts_with("Older revision") {
-        "Older revision"
-    } else if item.label.starts_with("Component") {
-        "Component"
-    } else if item.label.starts_with("Recovery snapshot") {
-        "Recovery snapshot"
-    } else if item.label.starts_with("System") {
-        "System data"
-    } else {
-        "User data"
-    }
-}
-
 fn measured_size(bytes: u64) -> String {
     if bytes == 0 {
         "0 B".into()
     } else {
         theme::format_size(bytes)
+    }
+}
+
+fn loading_labels(source: PackageSource) -> &'static [&'static str] {
+    match source {
+        PackageSource::Snap => &["Application", "Older revisions", "User data", "System data"],
+        PackageSource::Apt => &["Application", "Configuration", "User data"],
+        PackageSource::Flatpak => &["Application", "User data"],
+        PackageSource::AppImage => &["AppImage", "User data"],
+        PackageSource::Desktop => &["Launcher", "Executable", "User data"],
     }
 }

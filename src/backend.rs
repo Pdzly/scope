@@ -102,22 +102,22 @@ pub fn write_cache(scan: &Scan) {
     }
 }
 
-/// Load informational Snap details off the UI thread.
-pub fn spawn_snap_details(
-    name: String,
+/// Load source-aware informational details off the UI thread.
+pub fn spawn_package_details(
+    pkg: InstalledPackage,
     cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
-    tx: mpsc::UnboundedSender<crate::domain::snap_details::InspectionUpdate>,
+    tx: mpsc::UnboundedSender<crate::domain::package_details::InspectionUpdate>,
 ) {
     std::thread::spawn(move || {
         let progress = tx.clone();
-        let details = block_on(crate::domain::snap_details::inspect_progressive(
-            &name,
+        let details = block_on(crate::domain::package_details::inspect_progressive(
+            pkg,
             cancel,
             move |update| {
                 let _ = progress.unbounded_send(update);
             },
         ));
-        let _ = tx.unbounded_send(crate::domain::snap_details::InspectionUpdate {
+        let _ = tx.unbounded_send(crate::domain::package_details::InspectionUpdate {
             details,
             complete: true,
         });

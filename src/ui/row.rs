@@ -6,8 +6,8 @@ use gpui_kit::{div, img, px, rgb, rgba, AnyElement, FontWeight, WeakEntity};
 
 use crate::backend::{self, OpKind};
 use crate::domain::listing;
-use crate::domain::package::{InstalledPackage, PackageSource};
-use crate::domain::snap_details::SnapDetails;
+use crate::domain::package::InstalledPackage;
+use crate::domain::package_details::PackageDetails;
 use crate::theme::{self, display_title, text_dim};
 
 use super::app_view::{act, ScopeApp};
@@ -20,7 +20,7 @@ pub(super) struct RowState<'a> {
     pub operation_busy: bool,
     pub index: usize,
     pub hover: bool,
-    pub snap_details: Option<&'a SnapDetails>,
+    pub package_details: Option<&'a PackageDetails>,
 }
 
 pub(super) fn row_element(
@@ -34,7 +34,7 @@ pub(super) fn row_element(
         operation_busy,
         index,
         hover,
-        snap_details,
+        package_details,
     } = state;
     let title = display_title(pkg);
     let key = pkg.key.clone();
@@ -71,10 +71,8 @@ pub(super) fn row_element(
     };
 
     let has_action = action.is_some();
-    let show_removal_size = selected
-        && pkg.source == PackageSource::Snap
-        && view_mode == ViewMode::Uninstall
-        && listing::can_uninstall(pkg);
+    let show_removal_size =
+        selected && view_mode == ViewMode::Uninstall && listing::can_uninstall(pkg);
     let row = div()
         .id(("row", index))
         .group("row")
@@ -91,7 +89,7 @@ pub(super) fn row_element(
         .my(px(2.))
         .rounded(px(12.))
         .border_1()
-        .when(selected && pkg.source == PackageSource::Snap, |this| {
+        .when(selected, |this| {
             this.my(px(0.))
                 .rounded(px(0.))
                 .rounded_t(px(12.))
@@ -103,17 +101,15 @@ pub(super) fn row_element(
         } else {
             rgba(0x00000000).into()
         })
-        .bg(if selected && pkg.source == PackageSource::Snap {
-            theme::snap_surface()
-        } else if selected {
-            theme::selected_surface()
+        .bg(if selected {
+            theme::detail_surface()
         } else {
             rgba(0x00000000).into()
         })
         .when(hover, |this| {
             this.hover(|this| {
-                this.bg(if selected && pkg.source == PackageSource::Snap {
-                    theme::snap_hover_surface()
+                this.bg(if selected {
+                    theme::detail_hover_surface()
                 } else {
                     theme::hover_surface()
                 })
@@ -168,7 +164,7 @@ pub(super) fn row_element(
                                 .text_size(px(12.))
                                 .font_weight(FontWeight::MEDIUM)
                                 .text_color(text_dim())
-                                .child(super::snap_details::removal_summary(snap_details)),
+                                .child(super::package_details::removal_summary(package_details)),
                         )
                     })
                     .opacity(if selected { 1.0 } else { 0.0 })

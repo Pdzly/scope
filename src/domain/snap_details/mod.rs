@@ -3,17 +3,17 @@
 mod api;
 mod data;
 mod inspection;
-mod measurement;
 mod removal_size;
 
 use serde::{Deserialize, Serialize};
 
-pub use inspection::{inspect, inspect_progressive, InspectionUpdate};
-pub use measurement::Measurement;
+use crate::domain::package_details::measurement;
+pub use crate::domain::package_details::Measurement;
+pub use inspection::{inspect, inspect_progressive};
 
 pub const CLASSIC_COVERAGE_NOTE: &str = "This classic snap can store files outside Snap's managed directories. Those files are outside this breakdown.";
 pub const NO_SNAPSHOTS_NOTE: &str = "No existing recovery snapshots were reported for this app.";
-pub const MEASURING_NOTE: &str = "Measuring…";
+pub use crate::domain::package_details::MEASURING_NOTE;
 
 /// A manager-owned item and what normal Snap removal does to it.
 #[derive(Debug, Clone, Serialize, Deserialize)]

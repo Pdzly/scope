@@ -1,4 +1,4 @@
-//! Request identity and short-lived cache for lazy Snap inspection.
+//! Request identity and short-lived cache shared by all package sources.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -6,16 +6,16 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::domain::package::InstalledPackage;
-use crate::domain::snap_details::SnapDetails;
+use crate::domain::package_details::PackageDetails;
 
 const CACHE_TTL: Duration = Duration::from_secs(30);
 
 #[derive(Default)]
-pub(super) struct SnapDetailState {
+pub(super) struct PackageDetailState {
     generation: u64,
     cancel: Option<Arc<AtomicBool>>,
-    cache: HashMap<(String, String), (Instant, SnapDetails)>,
-    partial: Option<(String, String, SnapDetails)>,
+    cache: HashMap<(String, String), (Instant, PackageDetails)>,
+    partial: Option<(String, String, PackageDetails)>,
 }
 
 pub(super) struct DetailRequest {
@@ -23,7 +23,7 @@ pub(super) struct DetailRequest {
     pub cancel: Arc<AtomicBool>,
 }
 
-impl SnapDetailState {
+impl PackageDetailState {
     pub fn cancel(&mut self) {
         self.generation += 1;
         self.partial = None;
@@ -60,7 +60,7 @@ impl SnapDetailState {
         &mut self,
         generation: u64,
         pkg: &InstalledPackage,
-        details: SnapDetails,
+        details: PackageDetails,
         complete: bool,
     ) -> bool {
         if generation != self.generation {
@@ -97,7 +97,7 @@ impl SnapDetailState {
         true
     }
 
-    pub fn get(&self, pkg: &InstalledPackage) -> Option<&SnapDetails> {
+    pub fn get(&self, pkg: &InstalledPackage) -> Option<&PackageDetails> {
         if let Some((key, version, details)) = &self.partial {
             if key == &pkg.key && version == &pkg.version {
                 return Some(details);
@@ -110,7 +110,7 @@ impl SnapDetailState {
     }
 }
 
-impl Drop for SnapDetailState {
+impl Drop for PackageDetailState {
     fn drop(&mut self) {
         self.cancel();
     }
@@ -121,18 +121,17 @@ mod tests {
     use super::*;
     use crate::domain::package::PackageSource;
 
-    fn details() -> SnapDetails {
-        SnapDetails {
-            summary: None,
-            items: vec![crate::domain::snap_details::DetailItem {
+    fn details() -> PackageDetails {
+        PackageDetails {
+            items: vec![crate::domain::package_details::DetailItem {
                 label: "Revision 1".into(),
                 location: None,
-                size: crate::domain::snap_details::Measurement {
+                size: crate::domain::package_details::Measurement {
                     bytes: Some(1),
                     complete: true,
                     note: None,
                 },
-                effect: crate::domain::snap_details::RemovalEffect::RemovedBySnap,
+                effect: crate::domain::package_details::DetailEffect::Removed,
             }],
             warnings: vec![],
         }
@@ -140,7 +139,7 @@ mod tests {
 
     #[test]
     fn expired_cache_remains_visible_until_refresh_finishes() {
-        let mut state = SnapDetailState::default();
+        let mut state = PackageDetailState::default();
         let pkg = InstalledPackage::new(PackageSource::Snap, "code");
         let request = state.begin(&pkg).unwrap();
         assert!(state.accept(request.generation, &pkg, details(), true));
@@ -161,7 +160,7 @@ mod tests {
 
     #[test]
     fn partial_results_are_not_reused_after_canceling() {
-        let mut state = SnapDetailState::default();
+        let mut state = PackageDetailState::default();
         let pkg = InstalledPackage::new(PackageSource::Snap, "code");
         let request = state.begin(&pkg).unwrap();
         assert!(state.accept(request.generation, &pkg, details(), false));
@@ -175,7 +174,7 @@ mod tests {
 
     #[test]
     fn late_results_cannot_replace_new_selection() {
-        let mut state = SnapDetailState::default();
+        let mut state = PackageDetailState::default();
         let first = InstalledPackage::new(PackageSource::Snap, "code");
         let second = InstalledPackage::new(PackageSource::Snap, "firefox");
         let old = state.begin(&first).unwrap();
@@ -188,7 +187,7 @@ mod tests {
 
     #[test]
     fn scan_invalidation_rejects_in_flight_results_and_clears_cache() {
-        let mut state = SnapDetailState::default();
+        let mut state = PackageDetailState::default();
         let pkg = InstalledPackage::new(PackageSource::Snap, "code");
         let request = state.begin(&pkg).unwrap();
         state.clear();
@@ -198,5 +197,29 @@ mod tests {
         assert!(state.begin(&pkg).is_none());
         state.clear();
         assert!(state.get(&pkg).is_none());
+    }
+
+    #[test]
+    fn flatpak_user_and_system_details_have_independent_cache_entries() {
+        use crate::domain::package::InstallScope;
+        let mut state = PackageDetailState::default();
+        let user = InstalledPackage::new_scoped(
+            PackageSource::Flatpak,
+            "org.example.App",
+            InstallScope::User,
+        );
+        let system = InstalledPackage::new_scoped(
+            PackageSource::Flatpak,
+            "org.example.App",
+            InstallScope::System,
+        );
+        let request = state.begin(&user).unwrap();
+        assert!(state.accept(request.generation, &user, details(), true));
+        let request = state.begin(&system).unwrap();
+        let mut system_details = details();
+        system_details.items[0].size.bytes = Some(2);
+        assert!(state.accept(request.generation, &system, system_details, true));
+        assert_eq!(state.get(&user).unwrap().items[0].size.bytes, Some(1));
+        assert_eq!(state.get(&system).unwrap().items[0].size.bytes, Some(2));
     }
 }

@@ -275,7 +275,12 @@ fn confirm_body(
         .flex_col()
         .child(plan_rows(rows))
         .when_some(plan.snap_details.as_ref(), |this, details| {
-            this.child(super::snap_details::breakdown(Some(details)))
+            this.child(super::package_details::breakdown(
+                Some(&crate::domain::package_details::PackageDetails::from(
+                    details.as_ref(),
+                )),
+                PackageSource::Snap,
+            ))
         })
         .child(dialog_actions(vec![
             button(
