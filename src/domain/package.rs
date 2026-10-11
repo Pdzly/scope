@@ -87,6 +87,9 @@ pub struct InstalledPackage {
     pub description: Option<String>,
     /// Installed version (empty string when unknown).
     pub version: String,
+    /// App release version for display only. Operations always use `version`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_version: Option<String>,
     /// On-disk installed size in bytes (0 when unknown).
     pub size_bytes: u64,
     /// Coarse app kind.
@@ -110,6 +113,14 @@ pub struct InstalledPackage {
 }
 
 impl InstalledPackage {
+    /// Prefer enriched app metadata in the list, retaining the package version.
+    pub fn version_label(&self) -> &str {
+        self.display_version
+            .as_deref()
+            .filter(|version| !version.is_empty())
+            .unwrap_or(&self.version)
+    }
+
     pub fn new(source: PackageSource, package_id: impl Into<String>) -> Self {
         let package_id = package_id.into();
         let key = format!("{}:{}", source.id(), package_id);
@@ -122,6 +133,7 @@ impl InstalledPackage {
             display_name: None,
             description: None,
             version: String::new(),
+            display_version: None,
             size_bytes: 0,
             app_kind: AppKind::Unknown,
             icon: None,
@@ -148,6 +160,7 @@ impl InstalledPackage {
             display_name: None,
             description: None,
             version: String::new(),
+            display_version: None,
             size_bytes: 0,
             app_kind: AppKind::Unknown,
             icon: None,
@@ -162,6 +175,16 @@ impl InstalledPackage {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cached_packages_without_display_version_keep_the_package_version() {
+        let mut pkg = InstalledPackage::new(PackageSource::Snap, "firmware-updater");
+        pkg.version = "0+git.64c41a0".into();
+        let mut cached = serde_json::to_value(&pkg).unwrap();
+        cached.as_object_mut().unwrap().remove("display_version");
+        let restored: InstalledPackage = serde_json::from_value(cached).unwrap();
+        assert_eq!(restored.version_label(), "0+git.64c41a0");
+    }
 
     #[test]
     fn new_prefixes_the_key_with_the_source() {

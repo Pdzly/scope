@@ -34,6 +34,7 @@ src/                      GPUI app
     safety/               deny-lists for packages and paths
     system/               command execution, timeouts, pkexec
     snap_details/         read-only Snap revisions, snapshots and bounded data sizes
+    package_details/      shared footprint DTOs, bounded measurement, and per-source inspection
     package.rs            InstalledPackage plus source/scope enums
   theme.rs                palette and formatting helpers
   ui/                     screen state and composition
@@ -41,8 +42,8 @@ src/                      GPUI app
     filters.rs            search, view toggle, selects, rescan
     row.rs / detail.rs    list row + inline detail panel
     detail_transition.rs  measured inline detail expansion and collapse
-    snap_details.rs       lazy Snap breakdown shared with uninstall previews
-    snap_detail_state.rs  inspection cancellation, request identity and short cache
+    package_details.rs    shared lazy type/path/size breakdown and loading rows
+    package_detail_state.rs inspection cancellation, request identity and short cache
     dialog.rs             uninstall/update preview and confirmation
     operation_footer.rs   inline footer progress and dismissible results
     settings.rs           app information, project links, self-update confirmation
@@ -66,6 +67,10 @@ docs/                     GitHub Pages site
 - Uninstall/update previews use a modal. Applying and results live between the app count and Show all control in the bottom footer so browsing stays available; only one package operation may apply at a time.
 - The title-bar hamburger opens Settings with app/version information, project links, issue reporting, and an explicit update check. Self-updates from Settings or the update notice require confirmation before installation; unsupported installations link to a download. Check failures stay distinct from an up-to-date result.
 - UI colors come from `theme.rs`: dark red surfaces, burgundy borders, coral emphasis. Kit-owned controls use `theme::init`; actions share the pill button in `ui/widgets.rs`. Keep source colors confined to app icons and source indicators.
+- Use bundled Work Sans for all UI text, including paths and commands. Regular, Medium, Semibold, and Bold fonts and their OFL license live in `assets/fonts/`; `theme::init` registers them. Breakdown labels are semibold, paths are quieter, and sizes align right. Confirmation metadata shares the breakdown's label width, row padding, and spacing tokens in `theme.rs`.
+- List app names use Work Sans Medium. Expanded removable rows show an estimated `Removes ~<size>` summary beside Uninstall, excluding retained, unverified, and informational items. Partial estimates carry `+`; unavailable measurements stay explicit. Omit the generic classic-Snap coverage note from the breakdown, while retaining actual inspection warnings and incomplete-size notes.
+- Every source uses the same inline details panel, immediate source-appropriate placeholders, streaming measurements, 30-second cache, and measured-height easing. Expired complete details stay visible during refresh. Request identity includes the stable package key and raw version; Flatpak user/system keys remain distinct. Share a two-inspection worker limit, preserve cancellation and reduced motion, and keep Snap uninstall previews on fresh complete inspection.
+- Inspect only attributable installed footprints. APT measures dpkg-listed files individually, groups them by location, and marks conffiles kept by normal remove; never walk their shared parent directories or guess home-directory data. Flatpak resolves the deployment with the DTO's explicit scope, excludes shared runtimes, and reports current-user `~/.var/app/<id>` data as kept. AppImage reports its file and existing exact `.home`/`.config` portable sidecars. Desktop reports its launcher and resolved executable. Local-source rows are informational and never enable uninstall/update. Unattributable data stays explicitly unknown; no inspection launches apps, elevates privileges, or changes package-manager state.
 
 ## GPUI notes
 
@@ -88,6 +93,8 @@ Scanner and list filters are deliberate product choices:
 - Visible launchers in the user's applications directory that no APT/Snap/Flatpak/AppImage scanner owns appear as `Desktop` apps. They are discovery-only and protected from uninstall/update. APT package file lists associate `.desktop` launchers and icons with package IDs when their names differ.
 
 Enrichment is a layer on top of package data, not a replacement: visible `.desktop` entries supply display names, categories, and icons for GUI apps. CLI tools use a source-colored initials icon; packages with no reliable app/tool classification stay out of the main list.
+
+Snap version labels may use `display_version` from installed app metadata. VS Code reads a bounded `package.json` from the exact scanned revision, falling back to Snap's version when unavailable. Keep `version` unchanged for operation plans, probes, and revalidation; never launch apps to discover their version or invent release numbers for Git-based Snap versions.
 
 Commands that previews display and apply runs:
 

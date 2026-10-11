@@ -107,7 +107,7 @@ fn has_appimage_extension(path: &Path) -> bool {
 }
 
 /// AppImage magic: ELF header + "AI" + type byte (1 or 2) at offset 8..11.
-fn is_appimage(path: &Path) -> bool {
+pub(crate) fn is_appimage(path: &Path) -> bool {
     use std::io::Read as _;
     let Ok(mut file) = std::fs::File::open(path) else {
         return false;

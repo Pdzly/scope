@@ -18,7 +18,7 @@ pub struct Measurement {
 }
 
 impl Measurement {
-    pub(super) fn unknown(note: &str) -> Self {
+    pub(crate) fn unknown(note: &str) -> Self {
         Self {
             bytes: None,
             complete: false,
@@ -27,8 +27,20 @@ impl Measurement {
     }
 }
 
-pub(super) fn measure(path: &Path, cancel: &AtomicBool) -> Measurement {
+pub(crate) fn measure(path: &Path, cancel: &AtomicBool) -> Measurement {
     measure_with_limits(path, cancel, Duration::from_secs(2), 20_000)
+}
+
+pub(super) fn file_size(path: &Path) -> Measurement {
+    match path.symlink_metadata() {
+        Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => Measurement {
+            bytes: Some(metadata.len()),
+            complete: true,
+            note: None,
+        },
+        Ok(_) => Measurement::unknown("Not a regular file"),
+        Err(_) => Measurement::unknown("File could not be read"),
+    }
 }
 
 fn measure_with_limits(

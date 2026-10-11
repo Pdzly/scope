@@ -4,7 +4,12 @@
 
 use gpui_kit::{rgb, App, Hsla};
 
-use crate::domain::package::{AppKind, InstalledPackage, PackageSource};
+pub const FONT_FAMILY: &str = "Work Sans";
+pub const DETAIL_LABEL_WIDTH: f32 = 144.;
+pub const DETAIL_ROW_PADDING: f32 = 9.;
+pub const DETAIL_ROW_GAP: f32 = 16.;
+
+use crate::domain::package::{InstalledPackage, PackageSource};
 
 pub fn source_color(source: PackageSource) -> Hsla {
     match source {
@@ -17,15 +22,6 @@ pub fn source_color(source: PackageSource) -> Hsla {
     .into()
 }
 
-pub fn kind_color(kind: AppKind) -> Hsla {
-    match kind {
-        AppKind::Gui => rgb(0x2f8fa3),
-        AppKind::Cli => rgb(0xa97b2e),
-        AppKind::Unknown => rgb(0x6b625e),
-    }
-    .into()
-}
-
 pub fn source_label(source: PackageSource) -> &'static str {
     match source {
         PackageSource::Apt => "APT",
@@ -33,14 +29,6 @@ pub fn source_label(source: PackageSource) -> &'static str {
         PackageSource::Flatpak => "Flatpak",
         PackageSource::AppImage => "AppImage",
         PackageSource::Desktop => "Desktop",
-    }
-}
-
-pub fn kind_label(kind: AppKind) -> &'static str {
-    match kind {
-        AppKind::Gui => "GUI",
-        AppKind::Cli => "CLI",
-        AppKind::Unknown => "Unknown",
     }
 }
 
@@ -120,6 +108,9 @@ pub fn search_text(pkg: &InstalledPackage) -> String {
         pkg.categories.as_deref().unwrap_or(""),
         pkg.version.as_str(),
     ]
+    .into_iter()
+    .chain(pkg.display_version.as_deref())
+    .collect::<Vec<_>>()
     .join(" ")
     .to_lowercase()
 }
@@ -168,6 +159,13 @@ pub fn hover_surface() -> Hsla {
 pub fn selected_surface() -> Hsla {
     rgb(0x3d2529).into()
 }
+/// A quieter burgundy surface for the expanded app and its breakdown.
+pub fn detail_surface() -> Hsla {
+    rgb(0x332426).into()
+}
+pub fn detail_hover_surface() -> Hsla {
+    rgb(0x3a2a2c).into()
+}
 pub fn border_hover() -> Hsla {
     rgb(0x9c625e).into()
 }
@@ -191,10 +189,19 @@ pub fn background_bottom() -> Hsla {
 }
 
 /// Keep kit-owned input, caret, focus, and button states in Scope's palette.
-pub fn init(cx: &mut App) {
+pub fn init(cx: &mut App) -> anyhow::Result<()> {
     use gpui_kit::component::{Theme, ThemeMode};
+    // Embed every weight we use so installed builds do not depend on host fonts.
+    cx.text_system().add_fonts(vec![
+        std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/WorkSans-Regular.ttf")),
+        std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/WorkSans-Medium.ttf")),
+        std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/WorkSans-SemiBold.ttf")),
+        std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/WorkSans-Bold.ttf")),
+    ])?;
     Theme::change(ThemeMode::Dark, None, cx);
     let theme = Theme::global_mut(cx);
+    theme.font_family = FONT_FAMILY.into();
+    theme.mono_font_family = FONT_FAMILY.into();
     theme.radius = gpui_kit::px(16.);
     theme.radius_lg = gpui_kit::px(16.);
     let colors = &mut theme.colors;
@@ -238,6 +245,7 @@ pub fn init(cx: &mut App) {
     colors.button_danger_active = primary_pressed();
     theme.tokens = (&theme.colors).into();
     Theme::sync_base(cx);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -325,12 +333,5 @@ mod tests {
         assert_eq!(source_label(PackageSource::Flatpak), "Flatpak");
         assert_eq!(source_label(PackageSource::AppImage), "AppImage");
         assert_eq!(source_label(PackageSource::Desktop), "Desktop");
-    }
-
-    #[test]
-    fn kind_label_covers_every_kind() {
-        assert_eq!(kind_label(AppKind::Gui), "GUI");
-        assert_eq!(kind_label(AppKind::Cli), "CLI");
-        assert_eq!(kind_label(AppKind::Unknown), "Unknown");
     }
 }

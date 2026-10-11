@@ -86,7 +86,7 @@ pub struct ScopeApp {
     pub(super) show_all: bool,
     pub(super) selected_key: Option<String>,
     detail_transition: DetailTransition,
-    pub(super) snap_details: super::snap_detail_state::SnapDetailState,
+    pub(super) package_details: super::package_detail_state::PackageDetailState,
     pub(super) open_select: Option<OpenSelect>,
     pub(super) dialog: Option<Dialog>,
     operation: OperationController,
@@ -144,7 +144,7 @@ impl ScopeApp {
             show_all: false,
             selected_key: None,
             detail_transition: DetailTransition::default(),
-            snap_details: super::snap_detail_state::SnapDetailState::default(),
+            package_details: super::package_detail_state::PackageDetailState::default(),
             open_select: None,
             dialog: None,
             operation: OperationController::default(),
@@ -195,8 +195,8 @@ impl ScopeApp {
                     backend::write_cache(&scan);
                     this.scan = Some(scan);
                     this.scan_gen += 1;
-                    this.snap_details.clear();
-                    this.load_snap_details(cx);
+                    this.package_details.clear();
+                    this.load_package_details(cx);
                 }
                 this.loading = false;
                 this.refreshing = false;
@@ -231,7 +231,7 @@ impl ScopeApp {
         self.detail_transition
             .select(previous.as_deref(), next.as_deref());
         self.selected_key = next;
-        self.load_snap_details(cx);
+        self.load_package_details(cx);
         cx.notify();
     }
 
@@ -606,30 +606,29 @@ impl ScopeApp {
                     Some(pkg) => {
                         let selected = this.selected_key.as_deref() == Some(pkg.key.as_str());
                         let expanded = selected || this.detail_transition.visible(&pkg.key);
-                        let mut column = div().flex().flex_col().w_full().when(
-                            expanded && pkg.source == crate::domain::package::PackageSource::Snap,
-                            |this| {
-                                this.my(px(2.))
-                                    .rounded(px(12.))
-                                    .overflow_hidden()
-                                    .bg(theme::selected_surface())
-                            },
-                        );
+                        let mut column = div().flex().flex_col().w_full().when(expanded, |this| {
+                            this.my(px(2.))
+                                .rounded(px(12.))
+                                .overflow_hidden()
+                                .bg(theme::detail_surface())
+                        });
                         column = column.child(row_element(
                             &list_entity.downgrade(),
                             pkg,
-                            expanded,
-                            this.view_mode,
-                            this.operation.is_applying(),
-                            index,
-                            !this.smooth_scroll.is_scrolling(),
+                            super::row::RowState {
+                                selected: expanded,
+                                view_mode: this.view_mode,
+                                operation_busy: this.operation.is_applying(),
+                                index,
+                                hover: !this.smooth_scroll.is_scrolling(),
+                                package_details: this.package_details.get(pkg),
+                            },
                         ));
                         if expanded {
-                            column =
-                                column.child(this.detail_transition.wrap(
-                                    &pkg.key,
-                                    detail_element(pkg, this.snap_details.get(pkg)),
-                                ));
+                            column = column.child(this.detail_transition.wrap(
+                                &pkg.key,
+                                detail_element(pkg, this.package_details.get(pkg)),
+                            ));
                         }
                         column.into_any_element()
                     }
@@ -775,6 +774,7 @@ impl Render for ScopeApp {
                 linear_color_stop(theme::background_bottom(), 1.),
             ))
             .text_color(text())
+            .font_family(theme::FONT_FAMILY)
             // Keyboard shortcuts bubble up from the focused search box to the
             // root: Escape closes the operation dialog, Ctrl/Cmd+R rescans.
             // Standard search behavior: Escape closes the dialog first,

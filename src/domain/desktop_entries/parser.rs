@@ -3,6 +3,7 @@
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 /// A parsed launcher visible in the current desktop's app list.
@@ -24,7 +25,16 @@ pub struct DesktopApp {
 /// Parse one `.desktop` file into a [`DesktopApp`], or `None` when it cannot be
 /// read or carries no usable `Name`.
 pub fn parse(id: &str, path: &Path) -> Option<DesktopApp> {
-    let content = fs::read_to_string(path).ok()?;
+    const MAX_LAUNCHER_BYTES: u64 = 256 * 1024;
+    let mut content = String::new();
+    fs::File::open(path)
+        .ok()?
+        .take(MAX_LAUNCHER_BYTES + 1)
+        .read_to_string(&mut content)
+        .ok()?;
+    if content.len() as u64 > MAX_LAUNCHER_BYTES {
+        return None;
+    }
     let mut sections: HashMap<String, Vec<(String, String)>> = HashMap::new();
     let mut current = String::new();
 
