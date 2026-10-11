@@ -9,6 +9,7 @@ pub mod apt;
 pub mod flatpak;
 pub mod snap;
 mod snap_version;
+mod tools;
 
 use std::future::Future;
 
@@ -159,6 +160,9 @@ fn scanners() -> Vec<Box<dyn Scanner>> {
         Box::new(snap::SnapScanner),
         Box::new(flatpak::FlatpakScanner),
         Box::new(appimage::AppImageScanner::new()),
+        Box::new(tools::ToolScanner(PackageSource::Uv)),
+        Box::new(tools::ToolScanner(PackageSource::Pipx)),
+        Box::new(tools::ToolScanner(PackageSource::Cargo)),
     ]
 }
 
@@ -234,6 +238,18 @@ pub async fn scan_all() -> (Vec<InstalledPackage>, ScanAvailability) {
                 availability.appimage = outcome.available;
                 availability.appimage_dirs = appimage::search_directories();
             }
+            PackageSource::Uv => {
+                availability.uv = outcome.available;
+                availability.uv_error = outcome.error;
+            }
+            PackageSource::Pipx => {
+                availability.pipx = outcome.available;
+                availability.pipx_error = outcome.error;
+            }
+            PackageSource::Cargo => {
+                availability.cargo = outcome.available;
+                availability.cargo_error = outcome.error;
+            }
             PackageSource::Desktop => {
                 // Unmanaged desktop apps are synthesized from visible launchers
                 // below, not reported by a package-manager scanner.
@@ -301,7 +317,7 @@ fn scan_error_message(error: &anyhow::Error) -> String {
 
 /// Apply desktop-entry metadata to a package (display name, icon, categories...).
 fn enrich(pkg: &mut InstalledPackage, desktop: &DesktopIndex) {
-    if let Some(app) = desktop.lookup(pkg.source, &pkg.package_id, &pkg.name) {
+    if let Some(app) = desktop.lookup_package(pkg) {
         if pkg.display_name.is_none() {
             pkg.display_name = Some(app.name.clone());
         }
@@ -339,6 +355,18 @@ fn enrich(pkg: &mut InstalledPackage, desktop: &DesktopIndex) {
 /// Per-source availability and search dirs reported to the UI.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ScanAvailability {
+    #[serde(default)]
+    pub uv: bool,
+    #[serde(default)]
+    pub pipx: bool,
+    #[serde(default)]
+    pub cargo: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uv_error: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pipx_error: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cargo_error: Option<String>,
     pub apt: bool,
     pub snap: bool,
     pub flatpak: bool,

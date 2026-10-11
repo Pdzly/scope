@@ -16,3 +16,5 @@ pub mod scanner;
 pub mod snap_details;
 pub mod system;
 pub mod updater;
+
+pub mod tool_managers;

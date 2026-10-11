@@ -17,8 +17,32 @@ const UNINSTALL_TIMEOUT: Duration = Duration::from_secs(180);
 
 pub async fn preview(pkg: &InstalledPackage) -> Result<OperationPlan> {
     let target = OperationTarget::from_package(pkg)?;
+    if let OperationTarget::Tool {
+        package_id,
+        installation,
+    } = &target
+    {
+        crate::domain::tool_managers::operations::verify(package_id, installation, &pkg.version)
+            .await?;
+    }
     let protection = safety::check_package(pkg.source, &pkg.package_id);
-    let (auth, mut steps) = build_steps(&target, protection.protected);
+    let (auth, mut steps) = if let OperationTarget::Tool {
+        package_id,
+        installation,
+    } = &target
+    {
+        (
+            AuthMethod::None,
+            crate::domain::tool_managers::operations::steps(
+                package_id,
+                installation,
+                Operation::Uninstall,
+                "",
+            )?,
+        )
+    } else {
+        build_steps(&target, protection.protected)
+    };
     let fingerprint = if matches!(target, OperationTarget::Apt { .. }) && !protection.protected {
         let transaction = apt_transaction::simulate(Operation::Uninstall, target.id()).await?;
         steps.push(PlanStep {
@@ -66,6 +90,7 @@ fn build_steps(target: &OperationTarget, protected: bool) -> (AuthMethod, Vec<Pl
         return blocked("This package is protected and cannot be removed.");
     }
     match target {
+        OperationTarget::Tool { .. } => blocked("Tool installation requires verified metadata."),
         OperationTarget::Apt { package_id } => (
             AuthMethod::Pkexec,
             vec![PlanStep {
@@ -136,6 +161,13 @@ pub async fn apply(
     on_line: &(dyn Fn(&str) + Send + Sync),
 ) -> OperationResult {
     match &plan.target {
+        OperationTarget::Tool {
+            package_id,
+            installation,
+        } => {
+            crate::domain::tool_managers::operations::apply(plan, package_id, installation, on_line)
+                .await
+        }
         OperationTarget::Apt { package_id } => {
             run_elevated(
                 "apt",

@@ -28,6 +28,9 @@ pub(super) enum ViewMode {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum SourceFilter {
     All,
+    Uv,
+    Pipx,
+    Cargo,
     Apt,
     Snap,
     Flatpak,
@@ -38,6 +41,9 @@ pub(super) enum SourceFilter {
 impl SourceFilter {
     pub(super) fn label(self) -> &'static str {
         match self {
+            SourceFilter::Uv => "uv",
+            SourceFilter::Pipx => "pipx",
+            SourceFilter::Cargo => "Cargo",
             SourceFilter::All => "Any source",
             SourceFilter::Apt => "APT",
             SourceFilter::Snap => "Snap",
@@ -49,6 +55,9 @@ impl SourceFilter {
 
     pub(super) fn matches(self, source: PackageSource) -> bool {
         match self {
+            SourceFilter::Uv => source == PackageSource::Uv,
+            SourceFilter::Pipx => source == PackageSource::Pipx,
+            SourceFilter::Cargo => source == PackageSource::Cargo,
             SourceFilter::All => true,
             SourceFilter::Apt => source == PackageSource::Apt,
             SourceFilter::Snap => source == PackageSource::Snap,
@@ -201,6 +210,9 @@ impl ScopeApp {
                         (SourceFilter::Flatpak, "Flatpak"),
                         (SourceFilter::AppImage, "AppImage"),
                         (SourceFilter::Desktop, "Desktop"),
+                        (SourceFilter::Uv, "uv"),
+                        (SourceFilter::Pipx, "pipx"),
+                        (SourceFilter::Cargo, "Cargo"),
                     ];
                     options
                         .into_iter()

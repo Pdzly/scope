@@ -73,6 +73,16 @@ pub async fn capture_output_env(
     envs: &[(&str, &str)],
     timeout: Duration,
 ) -> Result<ProcessOutput, SystemError> {
+    capture_output_context(program, args, envs, None, timeout).await
+}
+
+pub async fn capture_output_context(
+    program: &str,
+    args: &[&str],
+    envs: &[(&str, &str)],
+    directory: Option<&std::path::Path>,
+    timeout: Duration,
+) -> Result<ProcessOutput, SystemError> {
     let mut command = Command::new(program);
     command
         .args(args)
@@ -80,6 +90,12 @@ pub async fn capture_output_env(
         .kill_on_drop(true)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
+    if let Some(directory) = directory {
+        command
+            .current_dir(directory)
+            .env("PIP_NO_INPUT", "1")
+            .env("GIT_TERMINAL_PROMPT", "0");
+    }
     let mut child = command.spawn().map_err(|source| SystemError::Spawn {
         program: program.to_string(),
         source,
@@ -159,27 +175,44 @@ pub async fn capture_stdout(
 
 /// Whether a binary exists on `PATH`. Cheap availability probe for scanners.
 pub fn which(program: &str) -> bool {
-    which_lookup(program).is_some()
+    resolve(program).is_some()
 }
 
-fn which_lookup(program: &str) -> Option<std::path::PathBuf> {
+pub fn resolve(program: &str) -> Option<std::path::PathBuf> {
     // Prefer absolute / well-known locations, fall back to PATH search.
     if let Some(home) = std::env::var_os("HOME") {
         let candidate = std::path::Path::new(&home).join(".local/bin").join(program);
         if candidate.is_file() {
-            return Some(candidate);
+            return std::path::absolute(candidate).ok();
+        }
+        let cargo_bin = std::env::var_os("CARGO_HOME")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::path::Path::new(&home).join(".cargo"))
+            .join("bin")
+            .join(program);
+        if cargo_bin.is_file() {
+            return std::path::absolute(cargo_bin).ok();
+        }
+        let mise_shim = std::path::Path::new(&home)
+            .join(".local/share/mise/shims")
+            .join(program);
+        if mise_shim.is_file() {
+            return std::path::absolute(mise_shim).ok();
         }
     }
     for dir in ["/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"] {
         let candidate = std::path::Path::new(dir).join(program);
         if candidate.is_file() {
-            return Some(candidate);
+            return std::path::absolute(candidate).ok();
         }
     }
     std::env::var_os("PATH").and_then(|paths| {
         std::env::split_paths(&paths).find_map(|dir| {
             let candidate = dir.join(program);
-            candidate.is_file().then_some(candidate)
+            candidate
+                .is_file()
+                .then(|| std::path::absolute(candidate).ok())
+                .flatten()
         })
     })
 }
@@ -296,7 +329,19 @@ pub async fn run_elevated(
     timeout: Duration,
     on_line: &(dyn Fn(&str) + Send + Sync),
 ) -> OperationResult {
-    let (mut cmd, display_program, argv) = elevated_command(program, args, auth);
+    let (cmd, display_program, _) = elevated_command(program, args, auth);
+    run_prepared(cmd, &display_program, args, timeout, on_line).await
+}
+
+/// Stream a prepared typed command. The summary is display-only and may redact credentials.
+pub async fn run_prepared(
+    mut cmd: Command,
+    display_program: &str,
+    args: &[&str],
+    timeout: Duration,
+    on_line: &(dyn Fn(&str) + Send + Sync),
+) -> OperationResult {
+    cmd.process_group(0);
     cmd.kill_on_drop(true)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
@@ -308,7 +353,7 @@ pub async fn run_elevated(
             return OperationResult {
                 success: false,
                 message: format!("Failed to start command: {e}"),
-                logs: format!("spawn error: {e}\n[scope] ran: {display_program} {argv:?}"),
+                logs: format!("spawn error: {e}\n[scope] ran: {display_program} {args:?}"),
                 exit_code: None,
             };
         }
@@ -374,6 +419,13 @@ pub async fn run_elevated(
 
     let timed_out = tokio::time::timeout(timeout, drain).await.is_err();
     if timed_out {
+        if let Some(pid) = child.id() {
+            // Signal only the dedicated group belonging to this operation.
+            let _ = Command::new("/bin/kill")
+                .args(["-KILL", "--", &format!("-{pid}")])
+                .status()
+                .await;
+        }
         let _ = child.kill().await;
     }
     if status.is_none() {
@@ -552,5 +604,22 @@ mod tests {
             .status()
             .unwrap();
         assert!(!status.success(), "timed-out child {pid} is still alive");
+    }
+    #[tokio::test]
+    async fn prepared_timeout_stops_build_descendants() {
+        let directory = tempfile::tempdir().unwrap();
+        let marker = directory.path().join("descendant-finished");
+        let mut command = Command::new("sh");
+        command
+            .args(["-c", "(sleep 0.4; touch \"$1\") & wait", "scope-test"])
+            .arg(&marker);
+        let result =
+            run_prepared(command, "fixture", &[], Duration::from_millis(100), &|_| {}).await;
+        assert!(!result.success);
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        assert!(
+            !marker.exists(),
+            "A timed-out build descendant kept running"
+        );
     }
 }

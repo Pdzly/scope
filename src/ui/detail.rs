@@ -17,6 +17,15 @@ pub(super) fn detail_element(
         .pb(px(20.))
         .pt(px(12.))
         .child(super::package_details::breakdown(details, pkg.source))
+        .when_some(pkg.update_note.clone(), |this, note| {
+            this.child(
+                div()
+                    .pt(px(12.))
+                    .text_size(px(12.))
+                    .text_color(theme::text_dim())
+                    .child(note),
+            )
+        })
         .when_some(listing::uninstall_block_reason(pkg), |this, reason| {
             this.child(
                 div()

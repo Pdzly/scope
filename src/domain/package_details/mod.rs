@@ -8,6 +8,7 @@ pub(crate) mod measurement;
 mod owned_files;
 mod snap;
 mod targets;
+mod tools;
 
 use serde::{Deserialize, Serialize};
 

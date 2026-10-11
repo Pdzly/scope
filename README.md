@@ -12,7 +12,7 @@
   <a href="https://github.com/khurrambhutto/scope/issues">Issues</a>
 </p>
 
-Scope puts apps from APT, Snap, Flatpak, AppImage, and user-local desktop launchers into one searchable list. You can update or uninstall supported apps, and you see the exact commands before anything runs. Privileged steps go through the standard Polkit dialog, so Scope never sees your password.
+Scope puts apps from APT, Snap, Flatpak, AppImage, uv, pipx, Cargo, and user-local desktop launchers into one searchable list. You can update or uninstall supported apps, and you see the exact commands before anything runs. Privileged steps go through the standard Polkit dialog, so Scope never sees your password.
 
 <p align="center">
   <a href="docs/image.png"><img src="docs/image.png" alt="Scope showing installed apps, search, source filter, and Show all in the top bar" width="49%" /></a>
@@ -76,16 +76,36 @@ Only one package operation can run at a time.
 | APT | Manual installs only | `apt remove` | `apt install` |
 | Snap | Apps only, runtimes hidden | `snap remove` | `snap refresh` |
 | Flatpak | User and system installs, scoped separately | `flatpak uninstall` | `flatpak update` |
+| uv tools | Persistent user tool environments | `uv tool uninstall` | `uv tool upgrade` |
+| pipx | User environments, including suffixed installs | `pipx uninstall` | `pipx upgrade` |
+| Cargo | Tracked user binary crates | `cargo uninstall` | `cargo install` with retained source and build settings |
 | AppImage | Common locations | Not yet supported | Not yet supported |
 | Desktop launchers | Launchers no package manager owns | Disabled | Disabled |
 
 Scope runs each package manager's own command. It never edits dpkg or apt databases directly.
 
+uv, pipx, and Cargo tools use the same list, filters, footprint panel, confirmation modal, and operation footer as other sources. One row represents a tool environment or crate, even when it exposes several commands. Scope retains the manager executable, installation root, and receipt identity, then checks them again before applying a plan. User tool operations run without administrator authorization.
+
+uv update checks resolve the original requirements, constraints, overrides, and index options without building packages. Upgrades respect the original constraints. pipx updates retain recorded pip options and upgrade the main package; injected packages are listed in removal previews and are removed with their environment. pipx can drop original version constraints during upgrade, while explicitly pinned packages remain pinned.
+
+Cargo update checks cover crates.io releases and tracked Git branches. Rebuilds retain binary selection, features, profile, target, and version constraints. Cargo subcommands and Rust toolchain components are not installed-tool rows. Cargo builds may take longer than Python upgrades and stream their output while browsing remains available.
+
+Management requires verified user-owned roots inside your home directory. Shared caches, interpreters, toolchains, personal settings, and app-created data are kept. Global pipx installs, untracked Cargo binaries, and incomplete ownership records are not managed. Git/local Python sources, local Cargo sources, and custom Cargo registries have no automatic release check in this implementation; details explain the limitation, and verified installations can still be uninstalled. Failed or timed-out update checks remain distinct from an up-to-date result.
+
+The optional native-manager checks use disposable installations in private temporary roots:
+
+```bash
+cargo test tool_managers::live_tests::disposable -- --ignored
+```
+
+They require uv, pipx, Cargo, Git, and Python. pipx may download packaging libraries. They do not update or uninstall existing working tools.
+
+
 ## Status
 
 What works today:
 
-- One list across APT, Snap, Flatpak, AppImages, and unmanaged desktop launchers
+- One list across APT, Snap, Flatpak, AppImages, uv, pipx, Cargo, and unmanaged desktop launchers
 - Display names, categories, and icons from desktop entries and the freedesktop icon theme
 - Uninstall with a preview, Polkit authentication, and a deny-list for protected packages
 - Snap removal details showing installed revisions, managed data sizes, and retained recovery snapshots
