@@ -47,8 +47,8 @@ Switch to **Updates** to see available updates. **Show all** reveals the scanned
 | Source | Uninstall | Update |
 | --- | --- | --- |
 | APT, Snap, Flatpak | Yes | Yes |
-| uv tools, pipx | Yes | Registry packages |
-| Cargo | Yes | crates.io and tracked Git branches |
+| uv tools, pipx | Yes | Yes |
+| Cargo | Yes | Yes |
 | AppImage, unmanaged desktop launchers | Discovery only | Discovery only |
 
 APT scans manual installs; Snap and Flatpak exclude runtimes. Tool management requires verified user-owned installations inside your home directory. Global pipx installs and untracked Cargo binaries are unsupported. Git/local Python sources and local/custom-registry Cargo sources have no automatic updates. Pins and supported installation constraints are respected; pipx upgrades may drop original version constraints. Shared caches, interpreters, toolchains, and personal data are kept.
