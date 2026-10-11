@@ -33,10 +33,20 @@ jobs:
             wayland-protocols \
             curl \
             jq \
-            minisign \
             dpkg-dev \
             squashfs-tools \
             file
+
+      - name: Install pinned Minisign
+        run: |
+          ARCHIVE="$RUNNER_TEMP/minisign-0.12-linux.tar.gz"
+          curl -fsSL https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-linux.tar.gz -o "$ARCHIVE"
+          echo "9a599b48ba6eb7b1e80f12f36b94ceca7c00b7a5173c95c3efc88d9822957e73  $ARCHIVE" | sha256sum --check
+          tar -xzf "$ARCHIVE" -C "$RUNNER_TEMP" minisign-linux/x86_64/minisign
+          mkdir -p "$RUNNER_TEMP/bin"
+          install -m 755 "$RUNNER_TEMP/minisign-linux/x86_64/minisign" "$RUNNER_TEMP/bin/minisign"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/minisign" -v
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
