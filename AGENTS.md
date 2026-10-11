@@ -147,6 +147,7 @@ cargo clippy
 ```
 
 - All of the above pass and the diff contains only the requested change.
+- Contributor pull requests must leave the website under `docs/` unchanged; website contributions are not accepted. App documentation outside `docs/` remains open to contributions, as described in `CONTRIBUTING.md`.
 - Safety-sensitive backend changes (probe, revalidate, deny-list, PlanStore) ship with targeted Rust tests in the same change.
 - `Cargo.lock` stays committed.
 - Releases use plain `v<version>` tags and `Scope v<version>` titles. Update Cargo metadata, the lockfile, README, and website version references together.
