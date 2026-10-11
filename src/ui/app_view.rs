@@ -612,17 +612,20 @@ impl ScopeApp {
                                 this.my(px(2.))
                                     .rounded(px(12.))
                                     .overflow_hidden()
-                                    .bg(theme::selected_surface())
+                                    .bg(theme::snap_surface())
                             },
                         );
                         column = column.child(row_element(
                             &list_entity.downgrade(),
                             pkg,
-                            expanded,
-                            this.view_mode,
-                            this.operation.is_applying(),
-                            index,
-                            !this.smooth_scroll.is_scrolling(),
+                            super::row::RowState {
+                                selected: expanded,
+                                view_mode: this.view_mode,
+                                operation_busy: this.operation.is_applying(),
+                                index,
+                                hover: !this.smooth_scroll.is_scrolling(),
+                                snap_details: this.snap_details.get(pkg),
+                            },
                         ));
                         if expanded {
                             column =
@@ -775,6 +778,7 @@ impl Render for ScopeApp {
                 linear_color_stop(theme::background_bottom(), 1.),
             ))
             .text_color(text())
+            .font_family(theme::FONT_FAMILY)
             // Keyboard shortcuts bubble up from the focused search box to the
             // root: Escape closes the operation dialog, Ctrl/Cmd+R rescans.
             // Standard search behavior: Escape closes the dialog first,

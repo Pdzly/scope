@@ -89,20 +89,27 @@ async fn scan() -> Result<Vec<InstalledPackage>> {
 
     let mut packages = Vec::with_capacity(rows.len());
     for row in rows {
-        let mut pkg = InstalledPackage::new(PackageSource::Snap, row.name);
-        pkg.name = pkg.package_id.clone();
-        pkg.version = row.version;
-        pkg.size_bytes = sizes.get(&pkg.package_id).copied().unwrap_or(0);
-        pkg.app_kind = if has_snap_command(&pkg.package_id) {
-            AppKind::Cli
-        } else {
-            AppKind::Unknown
-        };
-        packages.push(pkg);
+        let size = sizes.get(&row.name).copied().unwrap_or(0);
+        packages.push(package_from_row(row, size, Path::new("/snap")));
     }
 
     check_updates(&mut packages).await;
     Ok(packages)
+}
+
+fn package_from_row(row: SnapRow, size_bytes: u64, snap_root: &Path) -> InstalledPackage {
+    let display_version = super::snap_version::display_version(snap_root, &row.name, &row.revision);
+    let mut pkg = InstalledPackage::new(PackageSource::Snap, row.name);
+    pkg.name = pkg.package_id.clone();
+    pkg.version = row.version;
+    pkg.display_version = display_version;
+    pkg.size_bytes = size_bytes;
+    pkg.app_kind = if has_snap_command(&pkg.package_id) {
+        AppKind::Cli
+    } else {
+        AppKind::Unknown
+    };
+    pkg
 }
 
 /// On-disk size of every installed snap, keyed by snap name.
@@ -260,6 +267,43 @@ fn has_snap_command(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn code_displays_release_version_without_replacing_snap_version() {
+        let root = tempfile::tempdir().unwrap();
+        let manifest = root
+            .path()
+            .join("code/268/usr/share/code/resources/app/package.json");
+        std::fs::create_dir_all(manifest.parent().unwrap()).unwrap();
+        std::fs::write(manifest, r#"{"name":"Code","version":"1.141.0"}"#).unwrap();
+        let pkg = package_from_row(
+            SnapRow {
+                name: "code".into(),
+                version: "2a59476c".into(),
+                revision: "268".into(),
+            },
+            530,
+            root.path(),
+        );
+        assert_eq!(pkg.version_label(), "1.141.0");
+        assert_eq!(pkg.version, "2a59476c");
+    }
+
+    #[test]
+    fn missing_app_metadata_falls_back_to_the_snap_version() {
+        let root = tempfile::tempdir().unwrap();
+        let pkg = package_from_row(
+            SnapRow {
+                name: "code".into(),
+                version: "2a59476c".into(),
+                revision: "268".into(),
+            },
+            530,
+            root.path(),
+        );
+        assert_eq!(pkg.version_label(), "2a59476c");
+        assert_eq!(pkg.display_version, None);
+    }
 
     #[test]
     fn image_stem_matches_snapd_layout() {

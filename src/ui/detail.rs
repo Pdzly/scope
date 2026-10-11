@@ -17,9 +17,9 @@ pub(super) fn detail_element(
 ) -> AnyElement {
     if pkg.source == PackageSource::Snap {
         return div()
-            .px(px(16.))
-            .pb(px(14.))
-            .pt(px(6.))
+            .px(px(20.))
+            .pb(px(20.))
+            .pt(px(12.))
             .child(super::snap_details::breakdown(snap_details))
             .into_any_element();
     }

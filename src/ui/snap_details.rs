@@ -66,7 +66,11 @@ impl ScopeApp {
 
 /// Compact type/path/size rows. Markers describe effects and are not controls.
 pub(super) fn breakdown(details: Option<&SnapDetails>) -> AnyElement {
-    let mut content = div().flex().flex_col().gap(px(12.));
+    let mut content = div()
+        .flex()
+        .flex_col()
+        .gap(px(16.))
+        .text_color(theme::text());
     if let Some(details) = details {
         for (effect, heading) in [
             (RemovalEffect::RemovedBySnap, ""),
@@ -84,8 +88,8 @@ pub(super) fn breakdown(details: Option<&SnapDetails>) -> AnyElement {
                                 div()
                                     .flex()
                                     .items_center()
-                                    .pb(px(4.))
-                                    .text_size(px(12.))
+                                    .pb(px(6.))
+                                    .text_size(px(13.))
                                     .font_weight(FontWeight::SEMIBOLD)
                                     .child(heading),
                             )
@@ -101,13 +105,15 @@ pub(super) fn breakdown(details: Option<&SnapDetails>) -> AnyElement {
             }
         }
         for warning in &details.warnings {
-            if warning == "No existing recovery snapshots were reported for this app." {
+            if warning == crate::domain::snap_details::NO_SNAPSHOTS_NOTE
+                || warning == crate::domain::snap_details::CLASSIC_COVERAGE_NOTE
+            {
                 continue;
             }
             content = content.child(
                 div()
-                    .text_size(px(11.))
-                    .line_height(px(16.))
+                    .text_size(px(12.))
+                    .line_height(px(18.))
                     .text_color(theme::text_dim())
                     .child(warning.clone()),
             );
@@ -121,6 +127,22 @@ pub(super) fn breakdown(details: Option<&SnapDetails>) -> AnyElement {
         );
     }
     content.into_any_element()
+}
+
+/// Compact estimate of managed items, not net disk space freed.
+pub(super) fn removal_summary(details: Option<&SnapDetails>) -> String {
+    let Some(details) = details else {
+        return "Measuring removal…".into();
+    };
+    let size = details.removal_size();
+    match size.bytes {
+        Some(bytes) => format!(
+            "Removes ~{}{}",
+            measured_size(bytes),
+            if size.complete { "" } else { "+" }
+        ),
+        None => "Removal size unknown".into(),
+    }
 }
 
 fn detail_row(item: &DetailItem) -> AnyElement {
@@ -142,8 +164,8 @@ fn detail_row(item: &DetailItem) -> AnyElement {
     };
     let mut path = div().flex_1().min_w(px(0.)).flex().flex_col().child(
         div()
-            .font_family("monospace")
-            .text_size(px(11.))
+            .text_size(px(12.))
+            .line_height(px(18.))
             .text_color(theme::text_dim())
             .child(location),
     );
@@ -151,30 +173,32 @@ fn detail_row(item: &DetailItem) -> AnyElement {
         if let Some(note) = &item.size.note {
             path = path.child(
                 div()
-                    .text_size(px(10.))
-                    .text_color(theme::text_faint())
+                    .text_size(px(11.))
+                    .line_height(px(16.))
+                    .text_color(theme::text_dim())
                     .child(note.clone()),
             );
         }
     } else if item.effect == RemovalEffect::Unverified {
         path = path.child(
             div()
-                .text_size(px(10.))
-                .text_color(theme::text_faint())
+                .text_size(px(11.))
+                .line_height(px(16.))
+                .text_color(theme::text_dim())
                 .child("Removal coverage is not verified"),
         );
     }
     div()
         .flex()
         .items_start()
-        .gap(px(12.))
-        .py(px(8.))
-        .text_size(px(12.))
-        .line_height(px(16.))
+        .gap(px(theme::DETAIL_ROW_GAP))
+        .py(px(theme::DETAIL_ROW_PADDING))
+        .text_size(px(13.))
+        .line_height(px(18.))
         .child(
             div()
                 .flex_none()
-                .w(px(120.))
+                .w(px(theme::DETAIL_LABEL_WIDTH))
                 .flex()
                 .items_center()
                 .gap(px(9.))
@@ -187,7 +211,7 @@ fn detail_row(item: &DetailItem) -> AnyElement {
                     div()
                         .flex_1()
                         .min_w(px(0.))
-                        .font_weight(FontWeight::MEDIUM)
+                        .font_weight(FontWeight::SEMIBOLD)
                         .child(item_kind(item)),
                 ),
         )
@@ -195,9 +219,10 @@ fn detail_row(item: &DetailItem) -> AnyElement {
         .child(
             div()
                 .flex_none()
-                .w(px(64.))
+                .w(px(80.))
                 .text_right()
-                .text_size(px(11.))
+                .text_size(px(12.))
+                .font_weight(FontWeight::MEDIUM)
                 .text_color(theme::text_dim())
                 .child(size),
         )

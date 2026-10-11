@@ -3,6 +3,7 @@
 mod api;
 mod data;
 mod measurement;
+mod removal_size;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
@@ -11,6 +12,9 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::Semaphore;
 
 pub use measurement::Measurement;
+
+pub const CLASSIC_COVERAGE_NOTE: &str = "This classic snap can store files outside Snap's managed directories. Those files are outside this breakdown.";
+pub const NO_SNAPSHOTS_NOTE: &str = "No existing recovery snapshots were reported for this app.";
 
 /// A manager-owned item and what normal Snap removal does to it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -137,7 +141,7 @@ fn from_metadata(
                     details.warnings.push("This snap runs from a development directory. Its source files are outside normal removal coverage.".into());
                 }
                 if revision.confinement.as_deref() == Some("classic") {
-                    let warning = "This classic snap can store files outside Snap's managed directories. Those files are outside this breakdown.".to_owned();
+                    let warning = CLASSIC_COVERAGE_NOTE.to_owned();
                     if !details.warnings.contains(&warning) {
                         details.warnings.push(warning);
                     }
@@ -197,9 +201,7 @@ fn from_metadata(
                 }
             }
             if before == details.items.len() {
-                details
-                    .warnings
-                    .push("No existing recovery snapshots were reported for this app.".into());
+                details.warnings.push(NO_SNAPSHOTS_NOTE.into());
             }
         }
         Err(_) => details
