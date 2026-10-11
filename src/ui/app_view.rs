@@ -86,7 +86,7 @@ pub struct ScopeApp {
     pub(super) show_all: bool,
     pub(super) selected_key: Option<String>,
     detail_transition: DetailTransition,
-    pub(super) snap_details: super::snap_detail_state::SnapDetailState,
+    pub(super) package_details: super::package_detail_state::PackageDetailState,
     pub(super) open_select: Option<OpenSelect>,
     pub(super) dialog: Option<Dialog>,
     operation: OperationController,
@@ -94,6 +94,8 @@ pub struct ScopeApp {
     pub(super) plans: PlanStore,
     pub(super) updater: UpdaterUi,
     pub(super) updater_busy: bool,
+    pub(super) settings_open: bool,
+    pub(super) settings_checked: bool,
     /// Virtualized list state; scroll position lives here, not in the element.
     pub(super) list_state: ListState,
     /// Eases wheel scrolling of `list_state`.
@@ -142,7 +144,7 @@ impl ScopeApp {
             show_all: false,
             selected_key: None,
             detail_transition: DetailTransition::default(),
-            snap_details: super::snap_detail_state::SnapDetailState::default(),
+            package_details: super::package_detail_state::PackageDetailState::default(),
             open_select: None,
             dialog: None,
             operation: OperationController::default(),
@@ -150,6 +152,8 @@ impl ScopeApp {
             plans: PlanStore::default(),
             updater: UpdaterUi::default(),
             updater_busy: false,
+            settings_open: false,
+            settings_checked: false,
             // A non-zero overdraw is required: the list measures rows lazily,
             // and unmeasured rows count as zero height, so without look-ahead
             // the scrollable extent would equal only the visible rows.
@@ -191,8 +195,8 @@ impl ScopeApp {
                     backend::write_cache(&scan);
                     this.scan = Some(scan);
                     this.scan_gen += 1;
-                    this.snap_details.clear();
-                    this.load_snap_details(cx);
+                    this.package_details.clear();
+                    this.load_package_details(cx);
                 }
                 this.loading = false;
                 this.refreshing = false;
@@ -227,7 +231,7 @@ impl ScopeApp {
         self.detail_transition
             .select(previous.as_deref(), next.as_deref());
         self.selected_key = next;
-        self.load_snap_details(cx);
+        self.load_package_details(cx);
         cx.notify();
     }
 
@@ -420,12 +424,38 @@ impl ScopeApp {
             self.operation.cancel_preview();
         }
         self.dialog = None;
+        self.settings_open = false;
+        self.updater.confirming = false;
         cx.notify();
     }
 
+    /// Shows the check result in Settings briefly, then returns the button to "Check for updates".
+    fn revert_settings_check_label_later(&mut self, cx: &mut Context<Self>) {
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(Duration::from_secs(3)).await;
+            this.update(cx, |this, cx| {
+                if matches!(
+                    this.updater.status,
+                    UpdaterStatus::UpToDate | UpdaterStatus::Error { .. }
+                ) {
+                    this.settings_checked = false;
+                    cx.notify();
+                }
+            })
+            .ok();
+        })
+        .detach();
+    }
+
     pub(super) fn check_updater(&mut self, cx: &mut Context<Self>) {
+        if self.updater_busy || matches!(self.updater.status, UpdaterStatus::Checking) {
+            return;
+        }
+        self.updater.confirming = false;
         self.updater.status = UpdaterStatus::Checking;
-        let (tx, rx) = oneshot::channel::<Option<crate::domain::updater::UpdateCheck>>();
+        cx.notify();
+        let (tx, rx) =
+            oneshot::channel::<Result<Option<crate::domain::updater::UpdateCheck>, String>>();
         std::thread::spawn(move || {
             // Small delay so the list paints first, like the old shell.
             std::thread::sleep(Duration::from_millis(1000));
@@ -437,8 +467,19 @@ impl ScopeApp {
             entity
                 .update(cx, |this, cx| {
                     match result {
-                        Ok(Some(check)) => this.updater.status = UpdaterStatus::Available(check),
-                        _ => this.updater.status = UpdaterStatus::Dismissed,
+                        Ok(Ok(Some(check))) => {
+                            this.updater.status = UpdaterStatus::Available(check)
+                        }
+                        Ok(Ok(None)) => this.updater.status = UpdaterStatus::UpToDate,
+                        Ok(Err(message)) => this.updater.status = UpdaterStatus::Error { message },
+                        Err(_) => {
+                            this.updater.status = UpdaterStatus::Error {
+                                message: "Update check stopped. Please try again.".into(),
+                            }
+                        }
+                    }
+                    if this.settings_checked {
+                        this.revert_settings_check_label_later(cx);
                     }
                     cx.notify();
                 })
@@ -524,7 +565,7 @@ impl ScopeApp {
             banners.push(updater_banner(
                 &self.updater,
                 !busy,
-                act(entity, |this, cx| this.start_update(cx)),
+                act(entity, |this, cx| this.request_self_update(cx)),
                 act(entity, |this, cx| this.dismiss_updater(cx)),
             ));
         }
@@ -565,30 +606,29 @@ impl ScopeApp {
                     Some(pkg) => {
                         let selected = this.selected_key.as_deref() == Some(pkg.key.as_str());
                         let expanded = selected || this.detail_transition.visible(&pkg.key);
-                        let mut column = div().flex().flex_col().w_full().when(
-                            expanded && pkg.source == crate::domain::package::PackageSource::Snap,
-                            |this| {
-                                this.my(px(2.))
-                                    .rounded(px(12.))
-                                    .overflow_hidden()
-                                    .bg(theme::selected_surface())
-                            },
-                        );
+                        let mut column = div().flex().flex_col().w_full().when(expanded, |this| {
+                            this.my(px(2.))
+                                .rounded(px(12.))
+                                .overflow_hidden()
+                                .bg(theme::detail_surface())
+                        });
                         column = column.child(row_element(
                             &list_entity.downgrade(),
                             pkg,
-                            expanded,
-                            this.view_mode,
-                            this.operation.is_applying(),
-                            index,
-                            !this.smooth_scroll.is_scrolling(),
+                            super::row::RowState {
+                                selected: expanded,
+                                view_mode: this.view_mode,
+                                operation_busy: this.operation.is_applying(),
+                                index,
+                                hover: !this.smooth_scroll.is_scrolling(),
+                                package_details: this.package_details.get(pkg),
+                            },
                         ));
                         if expanded {
-                            column =
-                                column.child(this.detail_transition.wrap(
-                                    &pkg.key,
-                                    detail_element(pkg, this.snap_details.get(pkg)),
-                                ));
+                            column = column.child(this.detail_transition.wrap(
+                                &pkg.key,
+                                detail_element(pkg, this.package_details.get(pkg)),
+                            ));
                         }
                         column.into_any_element()
                     }
@@ -653,42 +693,9 @@ impl Render for ScopeApp {
         let corner_radius = px(if floating { 12. } else { 0. });
         let entity = cx.entity().downgrade();
         let list_entity = cx.entity();
-        let total = self
-            .scan
-            .as_ref()
-            .map(|scan| {
-                scan.packages
-                    .iter()
-                    .filter(|pkg| crate::domain::listing::is_visible(pkg, self.show_all))
-                    .count()
-            })
-            .unwrap_or(0);
-        let rows_len = self.packages.entries.len();
-
         let list_element = self.list_element(&list_entity);
 
         let banner_children = self.banner_stack(&entity);
-
-        let footer = if self.loading {
-            String::new()
-        } else if self.show_all {
-            theme::format_all_count(rows_len, total)
-        } else {
-            theme::format_app_count(rows_len, total)
-        };
-        let show_all_button = super::widgets::view_toggle_button(
-            "show-all",
-            if self.show_all {
-                "Show apps"
-            } else {
-                "Show all"
-            },
-            self.show_all,
-            act(&entity, |this, cx| {
-                this.show_all = !this.show_all;
-                cx.notify();
-            }),
-        );
 
         let operation_footer = self
             .operation_status
@@ -697,6 +704,8 @@ impl Render for ScopeApp {
 
         let dialog_el: Option<AnyElement> = if self.dialog.is_some() {
             Some(self.dialog_element(&entity, corner_radius))
+        } else if self.settings_open {
+            Some(self.settings_element(&entity, corner_radius))
         } else {
             None
         };
@@ -733,12 +742,13 @@ impl Render for ScopeApp {
                 linear_color_stop(theme::background_bottom(), 1.),
             ))
             .text_color(text())
+            .font_family(theme::FONT_FAMILY)
             // Keyboard shortcuts bubble up from the focused search box to the
             // root: Escape closes the operation dialog, Ctrl/Cmd+R rescans.
             // Standard search behavior: Escape closes the dialog first,
             // otherwise clears the query if one is present.
             .on_action(cx.listener(|this, _: &CloseDialog, window, cx| {
-                if this.dialog.is_some() {
+                if this.dialog.is_some() || this.settings_open {
                     this.close_dialog(cx);
                 } else if this.open_select.is_some() {
                     this.open_select = None;
@@ -759,7 +769,11 @@ impl Render for ScopeApp {
                     this.start_scan(cx);
                 }
             }))
-            .child(title_bar(self.view_navigation(cx), corner_radius))
+            .child(title_bar(
+                self.view_navigation(cx),
+                corner_radius,
+                act(&entity, |this, cx| this.open_settings(cx)),
+            ))
             .child(self.filters(cx))
             .children(banner_children)
             .child(
@@ -773,29 +787,20 @@ impl Render for ScopeApp {
                     .pb(px(16.))
                     .child(list_element),
             )
-            .child(
-                div()
-                    .flex_none()
-                    .px(px(32.))
-                    .py(px(2.))
-                    .min_h(px(0.))
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    .gap(px(16.))
-                    .text_size(px(12.))
-                    .text_color(text_faint())
-                    .child(div().flex_none().w(px(136.)).child(footer))
-                    .when_some(operation_footer, |this, status| this.child(status))
-                    .child(
-                        div()
-                            .flex_none()
-                            .w(px(136.))
-                            .flex()
-                            .justify_end()
-                            .child(show_all_button),
-                    ),
-            )
+            .when_some(operation_footer, |this, status| {
+                this.child(
+                    div()
+                        .flex_none()
+                        .px(px(32.))
+                        .pb(px(16.))
+                        .flex()
+                        .items_center()
+                        .text_size(px(12.))
+                        .line_height(px(16.))
+                        .text_color(text_faint())
+                        .child(status),
+                )
+            })
             .when_some(dropdown_backdrop, |this, backdrop| this.child(backdrop))
             .when_some(dialog_el, |this, dialog| this.child(dialog))
             .when(floating, |this| this.children(resize_zones()))

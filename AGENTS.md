@@ -34,6 +34,7 @@ src/                      GPUI app
     safety/               deny-lists for packages and paths
     system/               command execution, timeouts, pkexec
     snap_details/         read-only Snap revisions, snapshots and bounded data sizes
+    package_details/      shared footprint DTOs, bounded measurement, and per-source inspection
     package.rs            InstalledPackage plus source/scope enums
   theme.rs                palette and formatting helpers
   ui/                     screen state and composition
@@ -41,10 +42,12 @@ src/                      GPUI app
     filters.rs            search, view toggle, selects, rescan
     row.rs / detail.rs    list row + inline detail panel
     detail_transition.rs  measured inline detail expansion and collapse
-    snap_details.rs       lazy Snap breakdown shared with uninstall previews
-    snap_detail_state.rs  inspection cancellation, request identity and short cache
+    package_details.rs    shared lazy type/path/size breakdown and loading rows
+    package_detail_state.rs inspection cancellation, request identity and short cache
     dialog.rs             uninstall/update preview and confirmation
     operation_footer.rs   inline footer progress and dismissible results
+    settings.rs           app information, project links, self-update confirmation
+    updater.rs            self-update notice and lifecycle
     title_bar.rs          client-side title bar
     resize_zones.rs       invisible window edge/corner bands that start resizing
     text_input.rs         search field
@@ -61,9 +64,14 @@ docs/                     GitHub Pages site
 - `backend.rs` is a thin wrapper: look up state, delegate to `domain/scanner/` / `domain/operations/` / `domain/safety/`, return DTOs.
 - A feature that fits no existing module gets a new small module instead of growing a file past a few hundred lines.
 - Keep screens operational and app-like, never marketing pages.
-- Uninstall/update previews use a modal. Applying and results live between the app count and Show all control in the bottom footer so browsing stays available; only one package operation may apply at a time.
+- Uninstall/update previews use a modal. Applying and results appear at the bottom only while an operation is active or has a dismissible result, so browsing stays available; only one package operation may apply at a time. There is no idle footer. The app count appears in the search bar only, and Show all sits to its right in the filter bar.
+- The title-bar hamburger opens Settings with app/version information, project links, issue reporting, and an explicit update check. Self-updates from Settings or the update notice require confirmation before installation; unsupported installations link to a download. Check failures stay distinct from an up-to-date result.
 - UI colors come from `theme.rs`: dark red surfaces, burgundy borders, coral emphasis. Kit-owned controls use `theme::init`; actions share the pill button in `ui/widgets.rs`. Keep source colors confined to app icons and source indicators.
-- Package sources are exhaustive contracts: a `PackageSource` addition updates scanner registration, source availability/cache defaults, desktop ownership lookup, listing/filter/theme matches, safety, operation targets, probes, and update/uninstall handlers. Read-only sources must reject both operations in every route.
+- Package sources are exhaustive contracts: a `PackageSource` addition updates scanner registration, source availability/cache defaults, desktop ownership lookup, listing/filter/theme matches, safety, operation targets, probes, and update/uninstall handlers. Read-only sources must reject both operations in every route. All sources use the shared pill dropdown in `ui/filters.rs` and `ui/widgets.rs`.
+- Use bundled Work Sans for all UI text, including paths and commands. Regular, Medium, Semibold, and Bold fonts and their OFL license live in `assets/fonts/`; `theme::init` registers them. Breakdown labels are semibold, paths are quieter, and sizes align right. Confirmation metadata shares the breakdown's label width, row padding, and spacing tokens in `theme.rs`.
+- List app names use Work Sans Medium. Expanded removable rows show an estimated `Removes ~<size>` summary beside Uninstall, excluding retained, unverified, and informational items. Partial estimates carry `+`; unavailable measurements stay explicit. Omit the generic classic-Snap coverage note from the breakdown, while retaining actual inspection warnings and incomplete-size notes.
+- Every source uses the same inline details panel, immediate source-appropriate placeholders, streaming measurements, 30-second cache, and measured-height easing. Expired complete details stay visible during refresh. Request identity includes the stable package key and raw version; Flatpak user/system keys remain distinct. Share a two-inspection worker limit, preserve cancellation and reduced motion, and keep Snap uninstall previews on fresh complete inspection.
+- Inspect only attributable installed footprints. APT measures dpkg-listed files individually, groups them by location, and marks conffiles kept by normal remove; never walk their shared parent directories or guess home-directory data. Flatpak resolves the deployment with the DTO's explicit scope, excludes shared runtimes, and reports current-user `~/.var/app/<id>` data as kept. AppImage reports its file and existing exact `.home`/`.config` portable sidecars. Desktop reports its launcher and resolved executable. Local-source rows are informational and never enable uninstall/update. Unattributable data stays explicitly unknown; no inspection launches apps, elevates privileges, or changes package-manager state.
 
 ## GPUI notes
 
@@ -78,15 +86,17 @@ Scanner and list filters are deliberate product choices:
 - The default list shows user-relevant apps and tools, not OS internals; `Show all` is the explicit inventory override.
 - APT scans manual installs only (`apt-mark showmanual`), then the main list keeps recognizable GUI apps and public CLI tools from user-facing package sections. Libraries, development-library packages, metapackages, service-only packages, CLI-only admin/database components, and unclassified packages stay hidden.
 - The main list omits protected APT/Snap packages. Detected AppImages and user-local desktop apps remain visible, but their uninstall actions are disabled until Scope manages their installation source. Safety checks still run independently at preview and apply time.
-- The footer's `Show all` toggle bypasses app/tool classification and reveals every row returned by package scanners plus discovered user-local desktop apps. It never bypasses `safety/`; protected rows have a disabled uninstall action. APT still scans manual packages only and Snap/Flatpak runtimes remain excluded at scan time.
+- The filter bar's `Show all` toggle bypasses app/tool classification and reveals every row returned by package scanners plus discovered user-local desktop apps. It never bypasses `safety/`; protected rows have a disabled uninstall action. APT still scans manual packages only and Snap/Flatpak runtimes remain excluded at scan time.
 - Snap hides runtimes and bases (`core*`, `snapd`, `bare`, `gtk-*`, `gnome-*`, `*-gtk3`). A matching visible `.desktop` entry classifies a snap as GUI/CLI according to its `Terminal` flag; a `/snap/bin/<snap-name>` command can classify it as CLI.
 - Flatpak scans user and system as separate installs. Keys are `flatpak:user:<id>` and `flatpak:system:<id>`, and the DTO's `install_scope` is the single source of truth for which scope every later command uses. Never re-guess scope at preview or apply time.
 - Missing Flatpak scope is an error at preview, probe, and apply. Never default it to system scope.
 - AppImage scans `/opt`, `/usr/local/bin`, `~/Applications`, `~/apps`, `~/AppImages`, `~/Downloads`, `~/.local/bin` for ELF+`AI` magic files. Valid AppImages appear in the main list, but uninstall and update actions remain unsupported; `safety::check_appimage` denies every AppImage path, so preview yields a protected plan and apply-time revalidation fails closed.
 - Visible launchers in the user's applications directory that no APT/Snap/Flatpak/AppImage scanner owns appear as `Desktop` apps. They are discovery-only and protected from uninstall/update. APT package file lists associate `.desktop` launchers and icons with package IDs when their names differ.
-- Steam reads installed manifests from native Steam aliases/XDG roots and Flatpak Steam roots, including every reachable `libraryfolders.vdf` library. It uses binary `appinfo` `common.type`: `game`/`demo` are `Game`, `application` is `Gui`, and `tool` or missing/unknown metadata stays out of the default list until **Show all**. Exact Steam desktop launchers are owned by Steam to prevent duplicate Desktop rows. Steam derives update state locally from a valid, nonzero numeric manifest `StateFlags`: `UpdateRequired` is mask `0x2` (decimal 2, bit offset 1); with that mask, paused takes precedence, then running, downloading, staging, or committing means in progress, while started alone remains pending. Missing, malformed, or zero flags are `Unknown`; valid flags without `UpdateRequired` are `NoUpdateRecorded`, not confirmation that a game is up to date. Do not infer a target build or fabricate `update_version`. `steam_update_status` must retain its serde default so cached packages without that field remain unknown. It refreshes only on a normal scan or rescan and never checks Steam online. Steam remains read-only: Scope never updates or uninstalls it, and **Open in Steam** opens `steam://nav/games/details/<appid>`.
+- Steam reads installed manifests from native Steam aliases/XDG roots and Flatpak Steam roots, including every reachable `libraryfolders.vdf` library. It uses binary `appinfo` `common.type`: `game`/`demo` are `Game`, `application` is `Gui`, and `tool` or missing/unknown metadata stays out of the default list until **Show all**. Exact Steam desktop launchers are owned by Steam to prevent duplicate Desktop rows. Steam derives update state locally from a valid, nonzero numeric manifest `StateFlags`: `UpdateRequired` is mask `0x2` (decimal 2, bit offset 1); with that mask, paused takes precedence, then running, downloading, staging, or committing means in progress, while started alone remains pending. Missing, malformed, or zero flags are `Unknown`; valid flags without `UpdateRequired` are `NoUpdateRecorded`, not confirmation that a game is up to date. Do not infer a target build or fabricate `update_version`. `steam_update_status` must retain its serde default so cached packages without that field remain unknown. It refreshes only on a normal scan or rescan and never checks Steam online. Steam details use the shared inline panel, with informational unknown game-file and user-data sizes; Scope does not inspect Steam footprints. Steam remains read-only: Scope never updates or uninstalls it, and **Open in Steam** opens `steam://nav/games/details/<appid>`.
 
 Enrichment is a layer on top of package data, not a replacement: visible `.desktop` entries supply display names, categories, and icons for GUI apps. CLI tools use a source-colored initials icon; packages with no reliable app/tool classification stay out of the main list.
+
+Snap version labels may use `display_version` from installed app metadata. VS Code reads a bounded `package.json` from the exact scanned revision, falling back to Snap's version when unavailable. Keep `version` unchanged for operation plans, probes, and revalidation; never launch apps to discover their version or invent release numbers for Git-based Snap versions.
 
 Commands that previews display and apply runs:
 
@@ -98,6 +108,7 @@ Commands that previews display and apply runs:
 | Flatpak system | `pkexec flatpak uninstall -y --system <id>` | `pkexec flatpak update -y --system <id>` |
 | AppImage | not supported yet — protected plan, no command runs | not supported yet — protected plan, no command runs |
 | Steam | none — read-only | none — use Open in Steam |
+
 Snap removal details use compact type/path/size rows grouped by removal effect inside the expanded app row and preview modal. Removed rows have no tick marks or "Ready to remove" heading. Inline details ease their measured height when opening and closing, including after lazy Snap inspection finishes, and respect reduced-motion settings. Other markers describe effects and are not file-selection controls. Snap details have no size-column header or empty heading row. Confirmation metadata and Snap details share label-column widths, row padding, and spacing, without per-row dividers. Omit the empty recovery-snapshot message and the generic backup and size footnotes; keep inspection warnings and incomplete-size notes. Snap removal details are informational. Load them lazily from the local snapd API, measure only managed data directories with bounded workers, and refresh them at uninstall preview. Show incomplete or unavailable sizes explicitly. Never sum them into guaranteed freed space, treat paths as deletion targets, or enable purge/snapshot deletion. Normal `snap remove` may create a recovery snapshot; existing snapshots remain.
 
 Icon contract: icons load only from `scope-icon://localhost/<path>` URLs produced by `icons::icon_url`, decoded by `backend::icon_path` into on-disk paths GPUI renders directly.
@@ -142,5 +153,6 @@ cargo clippy
 - Safety-sensitive backend changes (probe, revalidate, deny-list, PlanStore) ship with targeted Rust tests in the same change.
 - `Cargo.lock` stays committed.
 - Releases use plain `v<version>` tags and `Scope v<version>` titles. Update Cargo metadata, the lockfile, README, and website version references together.
+- The release workflow publishes amd64 `.deb` and x86-64 AppImage packages plus `SHA256SUMS` and `SHA256SUMS.minisig`. Pushing the version tag builds and publishes the release.
 - Commit style is conventional: `feat:`, `fix:`, `chore:`, `docs:`, `style:`.
 - Update this file in the same change as any convention it describes.

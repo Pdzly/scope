@@ -17,6 +17,11 @@ use std::sync::Arc;
 
 pub use parser::DesktopApp;
 
+/// Parse one already discovered launcher without executing its command.
+pub(crate) fn parse_launcher(path: &Path) -> Option<DesktopApp> {
+    parser::parse(path.file_stem()?.to_str()?, path)
+}
+
 /// Directories whose `.desktop` files we ignore (locale, screensavers, etc.).
 const BLACKLISTED_DIRS: &[&str] = &[
     "/usr/share/locale",
@@ -620,14 +625,23 @@ mod tests {
 
         let unmanaged = index.unmanaged_apps_in(&[game], user_apps);
         assert_eq!(unmanaged.len(), 1);
-        assert_eq!(unmanaged[0].display_name.as_deref(), Some("Not a Steam game"));
+        assert_eq!(
+            unmanaged[0].display_name.as_deref(),
+            Some("Not a Steam game")
+        );
     }
 
     #[test]
     fn steam_uri_parser_rejects_noncanonical_or_ambiguous_ids() {
-        assert_eq!(steam_app_id_from_exec("steam steam://rungameid/42"), Some("42"));
+        assert_eq!(
+            steam_app_id_from_exec("steam steam://rungameid/42"),
+            Some("42")
+        );
         assert_eq!(steam_app_id_from_exec("steam steam://rungameid/0042"), None);
-        assert_eq!(steam_app_id_from_exec("steam steam://rungameid/42-extra"), None);
+        assert_eq!(
+            steam_app_id_from_exec("steam steam://rungameid/42-extra"),
+            None
+        );
         assert_eq!(
             steam_app_id_from_exec("steam steam://rungameid/42 steam://rungameid/43"),
             None

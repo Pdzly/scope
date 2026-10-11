@@ -15,9 +15,7 @@ use std::pin::Pin;
 use anyhow::Result;
 use steam_vdf_parser::{parse_appinfo, parse_text};
 
-use crate::domain::package::{
-    AppKind, InstalledPackage, PackageSource, SteamUpdateStatus,
-};
+use crate::domain::package::{AppKind, InstalledPackage, PackageSource, SteamUpdateStatus};
 use crate::domain::scanner::{ScanReport, Scanner};
 
 const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
@@ -31,10 +29,8 @@ const STATE_FLAG_UPDATE_PAUSED: u32 = 1 << 9;
 const STATE_FLAG_DOWNLOADING: u32 = 1 << 20;
 const STATE_FLAG_STAGING: u32 = 1 << 21;
 const STATE_FLAG_COMMITTING: u32 = 1 << 22;
-const STATE_FLAG_ACTIVE_UPDATE: u32 = STATE_FLAG_UPDATE_RUNNING
-    | STATE_FLAG_DOWNLOADING
-    | STATE_FLAG_STAGING
-    | STATE_FLAG_COMMITTING;
+const STATE_FLAG_ACTIVE_UPDATE: u32 =
+    STATE_FLAG_UPDATE_RUNNING | STATE_FLAG_DOWNLOADING | STATE_FLAG_STAGING | STATE_FLAG_COMMITTING;
 
 pub struct SteamScanner {
     roots: Vec<PathBuf>,
@@ -42,7 +38,9 @@ pub struct SteamScanner {
 
 impl SteamScanner {
     pub fn new() -> Self {
-        Self { roots: steam_roots() }
+        Self {
+            roots: steam_roots(),
+        }
     }
 }
 
@@ -142,7 +140,8 @@ fn scan_roots(roots: &[PathBuf]) -> ScanReport {
             packages
                 .entry(manifest.app_id)
                 .and_modify(|existing: &mut InstalledPackage| {
-                    if existing.app_kind == AppKind::Unknown && package.app_kind != AppKind::Unknown {
+                    if existing.app_kind == AppKind::Unknown && package.app_kind != AppKind::Unknown
+                    {
                         existing.app_kind = package.app_kind;
                     }
                 })
@@ -224,9 +223,7 @@ fn manifests_in(library: &Path) -> Vec<Manifest> {
         .filter_map(|entry| {
             let path = entry.path();
             let name = path.file_name()?.to_str()?;
-            let app_id = name
-                .strip_prefix("appmanifest_")?
-                .strip_suffix(".acf")?;
+            let app_id = name.strip_prefix("appmanifest_")?.strip_suffix(".acf")?;
             let app_id = canonical_app_id(app_id)?.to_owned();
             Some((path, app_id))
         })
@@ -245,10 +242,7 @@ fn parse_manifest(path: &Path, file_app_id: &str, library: &Path) -> Option<Mani
     }
     let install_dir = vdf.get_str(&["installdir"])?;
     if !safe_install_dir(install_dir)
-        || !library
-            .join("steamapps/common")
-            .join(install_dir)
-            .is_dir()
+        || !library.join("steamapps/common").join(install_dir).is_dir()
     {
         // Steam can retain manifests after uninstall. Directory evidence also
         // retains an installed game during an interrupted pending update when
@@ -284,12 +278,7 @@ fn steam_update_status(raw_state_flags: Option<&str>) -> (bool, SteamUpdateStatu
     let Some(raw_state_flags) = raw_state_flags else {
         return (false, SteamUpdateStatus::Unknown);
     };
-    if raw_state_flags.is_empty()
-        || !raw_state_flags
-            .as_bytes()
-            .iter()
-            .all(u8::is_ascii_digit)
-    {
+    if raw_state_flags.is_empty() || !raw_state_flags.as_bytes().iter().all(u8::is_ascii_digit) {
         return (false, SteamUpdateStatus::Unknown);
     }
     let Ok(state_flags) = raw_state_flags.parse::<u32>() else {
@@ -336,8 +325,7 @@ fn appinfo_classifications(root: &Path, warnings: &mut Vec<String>) -> HashMap<S
         return HashMap::new();
     };
 
-    apps
-        .iter()
+    apps.iter()
         .filter_map(|(app_id, app)| {
             let app_id = canonical_app_id(app_id)?;
             let app_type = app.get_str(&["appinfo", "common", "type"])?;
@@ -387,7 +375,8 @@ fn read_bounded(path: &Path, maximum: u64) -> std::io::Result<Vec<u8>> {
     }
 
     let mut bytes = Vec::new();
-    file.take(maximum.saturating_add(1)).read_to_end(&mut bytes)?;
+    file.take(maximum.saturating_add(1))
+        .read_to_end(&mut bytes)?;
     if bytes.len() as u64 > maximum {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
@@ -486,23 +475,18 @@ mod tests {
         let package = scanned_package_with_state_flags(Some("518"));
 
         assert!(package.has_update);
-        assert_eq!(
-            package.steam_update_status,
-            Some(SteamUpdateStatus::Paused)
-        );
+        assert_eq!(package.steam_update_status, Some(SteamUpdateStatus::Paused));
     }
 
     #[test]
     fn paused_flags_win_over_active_update_flags() {
-        let flags = (STATE_FLAG_UPDATE_REQUIRED | STATE_FLAG_UPDATE_PAUSED | STATE_FLAG_DOWNLOADING)
-            .to_string();
+        let flags =
+            (STATE_FLAG_UPDATE_REQUIRED | STATE_FLAG_UPDATE_PAUSED | STATE_FLAG_DOWNLOADING)
+                .to_string();
         let package = scanned_package_with_state_flags(Some(&flags));
 
         assert!(package.has_update);
-        assert_eq!(
-            package.steam_update_status,
-            Some(SteamUpdateStatus::Paused)
-        );
+        assert_eq!(package.steam_update_status, Some(SteamUpdateStatus::Paused));
     }
 
     #[test]
@@ -584,10 +568,7 @@ mod tests {
             .pop()
             .unwrap();
         assert!(first.has_update);
-        assert_eq!(
-            first.steam_update_status,
-            Some(SteamUpdateStatus::Pending)
-        );
+        assert_eq!(first.steam_update_status, Some(SteamUpdateStatus::Pending));
 
         fs::write(&manifest_path, manifest(42, "State", "State", 4)).unwrap();
         let second = scan_roots(&[root.path().to_path_buf()])
@@ -659,7 +640,11 @@ mod tests {
         )
         .unwrap();
         fs::create_dir_all(root.path().join("appcache")).unwrap();
-        fs::write(root.path().join("appcache/appinfo.vdf"), appinfo(&[(42, "game")])).unwrap();
+        fs::write(
+            root.path().join("appcache/appinfo.vdf"),
+            appinfo(&[(42, "game")]),
+        )
+        .unwrap();
 
         let report = scan_roots(&[root.path().to_path_buf()]);
         assert_eq!(report.packages.len(), 1);
@@ -710,7 +695,12 @@ mod tests {
         fs::create_dir_all(root.path().join("appcache")).unwrap();
         fs::write(
             root.path().join("appcache/appinfo.vdf"),
-            appinfo(&[(10, "game"), (11, "demo"), (12, "application"), (13, "tool")]),
+            appinfo(&[
+                (10, "game"),
+                (11, "demo"),
+                (12, "application"),
+                (13, "tool"),
+            ]),
         )
         .unwrap();
 

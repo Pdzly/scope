@@ -110,7 +110,7 @@ fn build_steps(
         OperationTarget::AppImage { .. } => blocked("AppImage updates are not supported yet."),
         OperationTarget::Desktop { .. } => {
             blocked("This app is not managed by a supported package manager.")
-        },
+        }
         OperationTarget::Steam { .. } => {
             blocked("Steam items are read-only in Scope. Manage updates in Steam.")
         }

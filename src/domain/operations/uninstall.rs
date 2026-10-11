@@ -100,7 +100,7 @@ fn build_steps(target: &OperationTarget, protected: bool) -> (AuthMethod, Vec<Pl
         OperationTarget::AppImage { .. } => blocked("AppImage uninstall is not supported yet."),
         OperationTarget::Desktop { .. } => {
             blocked("This app is not managed by a supported package manager.")
-        },
+        }
         OperationTarget::Steam { .. } => {
             blocked("Steam items are read-only in Scope. Manage updates in Steam.")
         }

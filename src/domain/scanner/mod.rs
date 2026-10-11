@@ -8,6 +8,7 @@ pub mod appimage;
 pub mod apt;
 pub mod flatpak;
 pub mod snap;
+mod snap_version;
 pub mod steam;
 
 use std::future::Future;

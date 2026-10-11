@@ -1,6 +1,6 @@
 # Scope
 
-> Scope is a free, open-source Linux app manager. It lists apps installed through APT, Snap, Flatpak, and AppImage in one searchable list, and it shows the exact commands for every update or uninstall before anything runs. Written in Rust with Zed's GPUI. Ubuntu is the first target. Version 0.3.4, MIT License.
+> Scope is a free, open-source Linux app manager. It lists apps installed through APT, Snap, Flatpak, and AppImage in one searchable list, and it shows the exact commands for every update or uninstall before anything runs. Written in Rust with Zed's GPUI. Ubuntu is the first target. Version 0.3.5, MIT License.
 
 Scope is a desktop app for Ubuntu and other Linux systems. It answers the question "what is installed on this machine, and how do I update or remove it safely?" It reads four package sources (APT, Snap, Flatpak, AppImage) plus desktop launchers that no package manager owns. Admin actions use the standard Polkit dialog, so the app never sees the user's password.
 
@@ -14,7 +14,7 @@ Scope is a desktop app for Ubuntu and other Linux systems. It answers the questi
 ## Code and releases
 
 - [Source code](https://github.com/khurrambhutto/scope): Rust source, README, architecture notes in AGENTS.md.
-- [Releases](https://github.com/khurrambhutto/scope/releases): Signed .deb packages and checksum manifests.
+- [Releases](https://github.com/khurrambhutto/scope/releases): .deb and AppImage packages with signed checksum manifests.
 - [Issues](https://github.com/khurrambhutto/scope/issues): Bug reports and feature requests.
 
 ## Facts
@@ -27,4 +27,4 @@ Scope is a desktop app for Ubuntu and other Linux systems. It answers the questi
 - Stack: Rust, Zed's GPUI, no webview
 - License: MIT
 - Author: Khurram Bhutto (https://khurrambhutto.tech/)
-- Current release: v0.3.4 (https://github.com/khurrambhutto/scope/releases/tag/v0.3.4)
+- Current release: v0.3.5 (https://github.com/khurrambhutto/scope/releases/tag/v0.3.5)

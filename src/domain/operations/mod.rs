@@ -24,13 +24,26 @@ use crate::domain::package::{InstallScope, PackageSource};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "source", rename_all = "lowercase")]
 pub enum OperationTarget {
-    Apt { package_id: String },
-    Snap { package_id: String },
-    Flatpak { app_id: String, scope: InstallScope },
-    AppImage { path: PathBuf },
-    Desktop { desktop_file: PathBuf },
+    Apt {
+        package_id: String,
+    },
+    Snap {
+        package_id: String,
+    },
+    Flatpak {
+        app_id: String,
+        scope: InstallScope,
+    },
+    AppImage {
+        path: PathBuf,
+    },
+    Desktop {
+        desktop_file: PathBuf,
+    },
     /// Steam discovery is read-only; every operation phase rejects this target.
-    Steam { app_id: String },
+    Steam {
+        app_id: String,
+    },
 }
 
 impl OperationTarget {

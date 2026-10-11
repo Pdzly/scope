@@ -102,15 +102,25 @@ pub fn write_cache(scan: &Scan) {
     }
 }
 
-/// Load informational Snap details off the UI thread.
-pub fn spawn_snap_details(
-    name: String,
+/// Load source-aware informational details off the UI thread.
+pub fn spawn_package_details(
+    pkg: InstalledPackage,
     cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
-    tx: oneshot::Sender<crate::domain::snap_details::SnapDetails>,
+    tx: mpsc::UnboundedSender<crate::domain::package_details::InspectionUpdate>,
 ) {
     std::thread::spawn(move || {
-        let details = block_on(crate::domain::snap_details::inspect(&name, cancel));
-        let _ = tx.send(details);
+        let progress = tx.clone();
+        let details = block_on(crate::domain::package_details::inspect_progressive(
+            pkg,
+            cancel,
+            move |update| {
+                let _ = progress.unbounded_send(update);
+            },
+        ));
+        let _ = tx.unbounded_send(crate::domain::package_details::InspectionUpdate {
+            details,
+            complete: true,
+        });
     });
 }
 
@@ -254,14 +264,18 @@ pub fn spawn_apply(plans: PlanStore, plan_id: String, tx: mpsc::UnboundedSender<
 }
 
 /// Check for a self-update off the UI thread.
-pub fn spawn_updater_check(tx: oneshot::Sender<Option<crate::domain::updater::UpdateCheck>>) {
+pub fn spawn_updater_check(
+    tx: oneshot::Sender<Result<Option<crate::domain::updater::UpdateCheck>, String>>,
+) {
     std::thread::spawn(move || {
         let result = block_on(async {
             let kind = crate::domain::updater::detect();
             let current = env!("CARGO_PKG_VERSION").to_string();
             match crate::domain::updater::fetch_latest().await {
-                Ok(release) => crate::domain::updater::check_update(&current, &release, kind),
-                Err(_) => None,
+                Ok(release) => Ok(crate::domain::updater::check_update(
+                    &current, &release, kind,
+                )),
+                Err(error) => Err(format!("Could not check for updates: {error}")),
             }
         });
         let _ = tx.send(result);

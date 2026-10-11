@@ -13,10 +13,11 @@ mod operation_footer;
 mod package_list_model;
 pub mod resize_zones;
 pub mod row;
+mod settings;
 mod smooth_scroll;
 pub mod title_bar;
 pub mod updater;
 pub mod widgets;
 
-mod snap_detail_state;
-mod snap_details;
+mod package_detail_state;
+mod package_details;

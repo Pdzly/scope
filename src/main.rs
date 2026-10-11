@@ -47,6 +47,7 @@ fn embedded_asset(path: &str) -> Option<&'static [u8]> {
         "refresh.svg" => Some(include_bytes!("../assets/refresh.svg")),
         "search.svg" => Some(include_bytes!("../assets/search.svg")),
         "clear.svg" => Some(include_bytes!("../assets/clear.svg")),
+        "bug.svg" => Some(include_bytes!("../assets/bug.svg")),
         _ => None,
     }
 }
@@ -89,7 +90,11 @@ fn main() {
             // while kit boots in Light mode (dark text, light input chrome).
             // Flip to Dark so the search input's text, placeholder, caret,
             // and selection stay visible on our background.
-            theme::init(cx);
+            if let Err(error) = theme::init(cx) {
+                eprintln!("Could not load Scope's bundled fonts: {error}");
+                cx.quit();
+                return;
+            }
             // Kit input handles its own keymap via init above.
             cx.bind_keys(ui::app_view::key_bindings());
 
@@ -101,7 +106,7 @@ fn main() {
             })
             .detach();
 
-            let bounds = Bounds::centered(None, size(px(1120.), px(740.)), cx);
+            let bounds = Bounds::centered(None, size(px(1060.), px(780.)), cx);
             // Opened directly (not via gpui_kit::open_window) so no Base
             // Root wraps the view: kit's Root draws a 1px WindowBorder frame
             // on Linux that we don't want. Plain kit components only need

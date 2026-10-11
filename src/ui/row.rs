@@ -7,27 +7,41 @@ use gpui_kit::{div, img, px, rgb, rgba, AnyElement, FontWeight, WeakEntity};
 use crate::backend::{self, OpKind};
 use crate::domain::listing;
 use crate::domain::package::{InstalledPackage, PackageSource, SteamUpdateStatus};
+use crate::domain::package_details::PackageDetails;
 use crate::theme::{self, display_title, text_dim};
 
 use super::app_view::{act, ScopeApp};
 use super::filters::ViewMode;
 use super::widgets::{button, ButtonStyle};
 
+pub(super) struct RowState<'a> {
+    pub selected: bool,
+    pub view_mode: ViewMode,
+    pub operation_busy: bool,
+    pub index: usize,
+    pub hover: bool,
+    pub package_details: Option<&'a PackageDetails>,
+}
+
 pub(super) fn row_element(
     entity: &WeakEntity<ScopeApp>,
     pkg: &InstalledPackage,
-    selected: bool,
-    view_mode: ViewMode,
-    operation_busy: bool,
-    index: usize,
-    hover: bool,
+    state: RowState<'_>,
 ) -> AnyElement {
+    let RowState {
+        selected,
+        view_mode,
+        operation_busy,
+        index,
+        hover,
+        package_details,
+    } = state;
     let title = display_title(pkg);
     let key = pkg.key.clone();
-    let version = if pkg.version.is_empty() {
+    let version = if pkg.version_label().is_empty() {
         "—".to_string()
     } else {
-        pkg.version.clone()
+        pkg.version_label().to_owned()
     };
 
     let steam_update_status = (pkg.source == PackageSource::Steam
@@ -71,6 +85,8 @@ pub(super) fn row_element(
     };
 
     let has_action = action.is_some();
+    let show_removal_size =
+        selected && view_mode == ViewMode::Uninstall && listing::can_uninstall(pkg);
     let row = div()
         .id(("row", index))
         .group("row")
@@ -80,12 +96,20 @@ pub(super) fn row_element(
         .gap(px(12.))
         .w_full()
         .px(px(12.))
-        .when(has_action, |this| this.pr(px(132.)))
+        .when(has_action, |this| {
+            this.pr(px(if show_removal_size {
+                330.
+            } else if pkg.source == PackageSource::Steam {
+                170.
+            } else {
+                132.
+            }))
+        })
         .py(px(10.))
         .my(px(2.))
         .rounded(px(12.))
         .border_1()
-        .when(selected && pkg.source == PackageSource::Snap, |this| {
+        .when(selected, |this| {
             this.my(px(0.))
                 .rounded(px(0.))
                 .rounded_t(px(12.))
@@ -98,12 +122,18 @@ pub(super) fn row_element(
             rgba(0x00000000).into()
         })
         .bg(if selected {
-            theme::selected_surface()
+            theme::detail_surface()
         } else {
             rgba(0x00000000).into()
         })
         .when(hover, |this| {
-            this.hover(|this| this.bg(theme::hover_surface()))
+            this.hover(|this| {
+                this.bg(if selected {
+                    theme::detail_hover_surface()
+                } else {
+                    theme::hover_surface()
+                })
+            })
         })
         .on_click(act(entity, move |this, cx| this.toggle_select(&key, cx)))
         .child(package_icon(pkg, 40.))
@@ -118,7 +148,7 @@ pub(super) fn row_element(
                     div()
                         .text_size(px(15.))
                         .line_height(px(18.))
-                        .font_weight(FontWeight::SEMIBOLD)
+                        .font_weight(FontWeight::MEDIUM)
                         .truncate()
                         .child(title),
                 )
@@ -150,6 +180,16 @@ pub(super) fn row_element(
                     .right(px(12.))
                     .flex()
                     .items_center()
+                    .gap(px(20.))
+                    .when(show_removal_size, |this| {
+                        this.child(
+                            div()
+                                .text_size(px(12.))
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(text_dim())
+                                .child(super::package_details::removal_summary(package_details)),
+                        )
+                    })
                     .opacity(if selected { 1.0 } else { 0.0 })
                     .when(hover, |this| {
                         this.group_hover("row", |this| this.opacity(1.0))

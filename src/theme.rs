@@ -4,9 +4,12 @@
 
 use gpui_kit::{rgb, App, Hsla};
 
-use crate::domain::package::{
-    AppKind, InstalledPackage, PackageSource, SteamUpdateStatus,
-};
+use crate::domain::package::{AppKind, InstalledPackage, PackageSource, SteamUpdateStatus};
+
+pub const FONT_FAMILY: &str = "Work Sans";
+pub const DETAIL_LABEL_WIDTH: f32 = 144.;
+pub const DETAIL_ROW_PADDING: f32 = 9.;
+pub const DETAIL_ROW_GAP: f32 = 16.;
 
 pub fn source_color(source: PackageSource) -> Hsla {
     match source {
@@ -20,16 +23,6 @@ pub fn source_color(source: PackageSource) -> Hsla {
     .into()
 }
 
-pub fn kind_color(kind: AppKind) -> Hsla {
-    match kind {
-        AppKind::Gui => rgb(0x2f8fa3),
-        AppKind::Cli => rgb(0xa97b2e),
-        AppKind::Game => rgb(0x5a7dc7),
-        AppKind::Unknown => rgb(0x6b625e),
-    }
-    .into()
-}
-
 pub fn source_label(source: PackageSource) -> &'static str {
     match source {
         PackageSource::Apt => "APT",
@@ -38,15 +31,6 @@ pub fn source_label(source: PackageSource) -> &'static str {
         PackageSource::AppImage => "AppImage",
         PackageSource::Desktop => "Desktop",
         PackageSource::Steam => "Steam",
-    }
-}
-
-pub fn kind_label(kind: AppKind) -> &'static str {
-    match kind {
-        AppKind::Gui => "GUI",
-        AppKind::Cli => "CLI",
-        AppKind::Game => "Game",
-        AppKind::Unknown => "Unknown",
     }
 }
 
@@ -92,27 +76,6 @@ pub fn format_size(bytes: u64) -> String {
     format!("{value:.digits$} {}", UNITS[unit])
 }
 
-/// Footer status line, matching the TypeScript `formatAppCount`.
-pub fn format_app_count(shown: usize, total: usize) -> String {
-    format_item_count(shown, total, "app", "apps")
-}
-
-/// Footer status for the unfiltered inventory view.
-pub fn format_all_count(shown: usize, total: usize) -> String {
-    format_item_count(shown, total, "item", "items")
-}
-
-fn format_item_count(shown: usize, total: usize, singular: &str, plural: &str) -> String {
-    if shown == total {
-        format!(
-            "Showing {total} {}",
-            if total == 1 { singular } else { plural }
-        )
-    } else {
-        format!("Showing {shown} of {total} {plural}")
-    }
-}
-
 /// Elapsed seconds as `m:ss`.
 pub fn format_elapsed(seconds: u64) -> String {
     format!("{}:{:02}", seconds / 60, seconds % 60)
@@ -146,6 +109,9 @@ pub fn search_text(pkg: &InstalledPackage) -> String {
         pkg.categories.as_deref().unwrap_or(""),
         pkg.version.as_str(),
     ]
+    .into_iter()
+    .chain(pkg.display_version.as_deref())
+    .collect::<Vec<_>>()
     .join(" ")
     .to_lowercase()
 }
@@ -194,6 +160,13 @@ pub fn hover_surface() -> Hsla {
 pub fn selected_surface() -> Hsla {
     rgb(0x3d2529).into()
 }
+/// A quieter burgundy surface for the expanded app and its breakdown.
+pub fn detail_surface() -> Hsla {
+    rgb(0x332426).into()
+}
+pub fn detail_hover_surface() -> Hsla {
+    rgb(0x3a2a2c).into()
+}
 pub fn border_hover() -> Hsla {
     rgb(0x9c625e).into()
 }
@@ -217,10 +190,19 @@ pub fn background_bottom() -> Hsla {
 }
 
 /// Keep kit-owned input, caret, focus, and button states in Scope's palette.
-pub fn init(cx: &mut App) {
+pub fn init(cx: &mut App) -> anyhow::Result<()> {
     use gpui_kit::component::{Theme, ThemeMode};
+    // Embed every weight we use so installed builds do not depend on host fonts.
+    cx.text_system().add_fonts(vec![
+        std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/WorkSans-Regular.ttf")),
+        std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/WorkSans-Medium.ttf")),
+        std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/WorkSans-SemiBold.ttf")),
+        std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/WorkSans-Bold.ttf")),
+    ])?;
     Theme::change(ThemeMode::Dark, None, cx);
     let theme = Theme::global_mut(cx);
+    theme.font_family = FONT_FAMILY.into();
+    theme.mono_font_family = FONT_FAMILY.into();
     theme.radius = gpui_kit::px(16.);
     theme.radius_lg = gpui_kit::px(16.);
     let colors = &mut theme.colors;
@@ -264,6 +246,7 @@ pub fn init(cx: &mut App) {
     colors.button_danger_active = primary_pressed();
     theme.tokens = (&theme.colors).into();
     Theme::sync_base(cx);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -286,21 +269,6 @@ mod tests {
         assert_eq!(format_size(1024 * 1024), "1.0 MB");
         assert_eq!(format_size(5 * 1024 * 1024 * 1024), "5.0 GB");
         assert_eq!(format_size(2 * 1024 * 1024 * 1024 * 1024), "2.0 TB");
-    }
-
-    #[test]
-    fn format_app_count_matches_the_typescript_copy() {
-        assert_eq!(format_app_count(3, 3), "Showing 3 apps");
-        assert_eq!(format_app_count(1, 1), "Showing 1 app");
-        assert_eq!(format_app_count(0, 0), "Showing 0 apps");
-        assert_eq!(format_app_count(2, 10), "Showing 2 of 10 apps");
-    }
-
-    #[test]
-    fn format_all_count_names_inventory_items() {
-        assert_eq!(format_all_count(12, 12), "Showing 12 items");
-        assert_eq!(format_all_count(1, 1), "Showing 1 item");
-        assert_eq!(format_all_count(5, 20), "Showing 5 of 20 items");
     }
 
     #[test]
@@ -351,13 +319,5 @@ mod tests {
         assert_eq!(source_label(PackageSource::Flatpak), "Flatpak");
         assert_eq!(source_label(PackageSource::AppImage), "AppImage");
         assert_eq!(source_label(PackageSource::Desktop), "Desktop");
-    }
-
-
-    #[test]
-    fn kind_label_covers_every_kind() {
-        assert_eq!(kind_label(AppKind::Gui), "GUI");
-        assert_eq!(kind_label(AppKind::Cli), "CLI");
-        assert_eq!(kind_label(AppKind::Unknown), "Unknown");
     }
 }

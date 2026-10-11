@@ -313,11 +313,8 @@ mod tests {
 
     #[test]
     fn steam_probe_fails_closed() {
-        assert!(futures::executor::block_on(probe_package(
-            PackageSource::Steam,
-            "570",
-            None,
-        ))
-        .is_err());
+        assert!(
+            futures::executor::block_on(probe_package(PackageSource::Steam, "570", None,)).is_err()
+        );
     }
 }

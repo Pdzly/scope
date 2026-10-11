@@ -1,11 +1,11 @@
 //! Known Snap data locations. Alternative layouts need explicit coverage labels.
 
 use std::path::Path;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::{measurement, DetailItem, Measurement, RemovalEffect};
 
-pub(super) fn items(home: Option<&Path>, name: &str, cancel: &AtomicBool) -> Vec<DetailItem> {
+pub(super) fn locations(home: Option<&Path>, name: &str) -> Vec<DetailItem> {
     let mut items = Vec::new();
     if let Some(home) = home {
         let standard = home.join("snap").join(name);
@@ -22,26 +22,19 @@ pub(super) fn items(home: Option<&Path>, name: &str, cancel: &AtomicBool) -> Vec
                     "Your default data directory",
                     &standard,
                     RemovalEffect::Unverified,
-                    cancel,
                 ));
             }
-            let mut hidden_item = item(
+            let hidden_item = item(
                 "Your hidden data directory",
                 &hidden,
                 RemovalEffect::Unverified,
-                cancel,
             );
-            let measured_note = hidden_item.size.note.take().unwrap_or_default();
-            hidden_item.size.note = Some(format!(
-                "Alternative Snap layout; removal coverage could not be verified. {measured_note}"
-            ));
             items.push(hidden_item);
         } else {
             items.push(item(
                 "Your managed data",
                 &standard,
                 RemovalEffect::RemovedBySnap,
-                cancel,
             ));
         }
     } else {
@@ -56,17 +49,41 @@ pub(super) fn items(home: Option<&Path>, name: &str, cancel: &AtomicBool) -> Vec
         "System managed data",
         &Path::new("/var/snap").join(name),
         RemovalEffect::RemovedBySnap,
-        cancel,
     ));
     items
 }
 
-fn item(label: &str, path: &Path, effect: RemovalEffect, cancel: &AtomicBool) -> DetailItem {
+fn item(label: &str, path: &Path, effect: RemovalEffect) -> DetailItem {
     DetailItem {
         label: label.into(),
         location: Some(path.to_string_lossy().into_owned()),
-        size: measurement::measure(path, cancel),
+        size: Measurement::unknown(super::MEASURING_NOTE),
         effect,
+    }
+}
+
+/// Publish each completed size without waiting for the remaining directories.
+pub(super) fn measure_items(
+    items: &mut [DetailItem],
+    cancel: &AtomicBool,
+    mut publish: impl FnMut(&[DetailItem]),
+) {
+    for index in 0..items.len() {
+        if cancel.load(Ordering::Relaxed) {
+            return;
+        }
+        let Some(location) = items[index].location.as_deref() else {
+            continue;
+        };
+        let mut size = measurement::measure(Path::new(location), cancel);
+        if items[index].effect == RemovalEffect::Unverified {
+            let note = size.note.take().unwrap_or_default();
+            size.note = Some(format!(
+                "Alternative Snap layout; removal coverage could not be verified. {note}"
+            ));
+        }
+        items[index].size = size;
+        publish(items);
     }
 }
 
@@ -75,10 +92,69 @@ mod tests {
     use super::*;
 
     #[test]
+    fn publishes_each_size_while_later_rows_remain_pending() {
+        let root = tempfile::tempdir().unwrap();
+        let user = root.path().join("user-data");
+        let system = root.path().join("system-data");
+        std::fs::create_dir(&user).unwrap();
+        std::fs::create_dir(&system).unwrap();
+        // Both measurement targets belong to the fixture, independent of snapd.
+        let mut rows = vec![
+            item("Your managed data", &user, RemovalEffect::RemovedBySnap),
+            item("System managed data", &system, RemovalEffect::RemovedBySnap),
+        ];
+        assert!(rows
+            .iter()
+            .all(|item| item.size.note.as_deref() == Some(super::super::MEASURING_NOTE)));
+        let mut updates = Vec::new();
+        measure_items(&mut rows, &AtomicBool::new(false), |items| {
+            updates.push(items.to_vec())
+        });
+        assert_eq!(updates.len(), 2);
+        assert!(updates[0][0].size.bytes.is_some());
+        assert_eq!(
+            updates[0][1].size.note.as_deref(),
+            Some(super::super::MEASURING_NOTE)
+        );
+        assert!(updates[1][1].size.bytes.is_some());
+    }
+
+    #[test]
+    fn missing_directory_publishes_an_unknown_size_instead_of_staying_pending() {
+        let root = tempfile::tempdir().unwrap();
+        let mut rows = vec![item(
+            "System managed data",
+            &root.path().join("missing"),
+            RemovalEffect::RemovedBySnap,
+        )];
+        let mut updates = Vec::new();
+        measure_items(&mut rows, &AtomicBool::new(false), |items| {
+            updates.push(items.to_vec())
+        });
+        assert_eq!(updates.len(), 1);
+        assert_eq!(updates[0][0].size.bytes, None);
+        assert!(!updates[0][0].size.complete);
+        assert_eq!(
+            updates[0][0].size.note.as_deref(),
+            Some("Directory not present")
+        );
+    }
+
+    #[test]
+    fn cancelled_measurement_publishes_no_results() {
+        let mut rows = locations(None, "code");
+        measure_items(&mut rows, &AtomicBool::new(true), |_| {
+            panic!("Canceled work must not publish")
+        });
+        assert_eq!(rows[1].size.bytes, None);
+    }
+
+    #[test]
     fn alternative_layout_is_measured_without_promising_removal() {
         let home = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(home.path().join(".snap/data/code")).unwrap();
-        let items = items(Some(home.path()), "code", &AtomicBool::new(false));
+        let mut items = locations(Some(home.path()), "code");
+        measure_items(&mut items, &AtomicBool::new(false), |_| {});
         assert_eq!(items[0].effect, RemovalEffect::Unverified);
         assert!(items[0].size.bytes.is_some());
         assert_eq!(items[0].label, "Your hidden data directory");
