@@ -15,22 +15,30 @@
 Scope puts apps from APT, Snap, Flatpak, AppImage, and user-local desktop launchers into one searchable list. You can update or uninstall supported apps, and you see the exact commands before anything runs. Privileged steps go through the standard Polkit dialog, so Scope never sees your password.
 
 <p align="center">
-  <img src="docs/image.png" alt="Scope v0.3.4 showing the Apps and Updates toggle, installed apps, search, source filter, and Show all control in its dark red interface" width="960" />
+  <a href="docs/image.png"><img src="docs/image.png" alt="Scope showing installed apps, search, source filter, and Show all in the top bar" width="49%" /></a>
+  <a href="docs/app-details.png"><img src="docs/app-details.png" alt="Scope with App Center expanded to show application files, older revisions, user data, system data, and estimated removal size" width="49%" /></a>
 </p>
 
 Scope is written in Rust with Zed's GPUI. It has no webview. Architecture and module rules live in [AGENTS.md](AGENTS.md).
 
 ## Install
 
-The current release is [v0.3.4](https://github.com/khurrambhutto/scope/releases/tag/v0.3.4). Scope targets Ubuntu on x86-64 first.
+The current release is [v0.3.5](https://github.com/khurrambhutto/scope/releases/tag/v0.3.5). Scope targets Ubuntu on x86-64 first.
 
-Download [scope_0.3.4_amd64.deb](https://github.com/khurrambhutto/scope/releases/download/v0.3.4/scope_0.3.4_amd64.deb), then run this from the download folder:
+Download [scope_0.3.5_amd64.deb](https://github.com/khurrambhutto/scope/releases/download/v0.3.5/scope_0.3.5_amd64.deb), then run this from the download folder:
 
 ```bash
-sudo apt install ./scope_0.3.4_amd64.deb
+sudo apt install ./scope_0.3.5_amd64.deb
 ```
 
-Scope checks GitHub Releases on startup. Official `.deb` builds from v0.3.4 can install later updates after verifying a signed checksum manifest. If you upgrade from an older version that has no embedded verification key, install v0.3.4 by hand. Other install types open the Releases page when no verified package is available.
+For a portable build, download [Scope-0.3.5-x86_64.AppImage](https://github.com/khurrambhutto/scope/releases/download/v0.3.5/Scope-0.3.5-x86_64.AppImage), make it executable, and launch it:
+
+```bash
+chmod +x Scope-0.3.5-x86_64.AppImage
+./Scope-0.3.5-x86_64.AppImage
+```
+
+Scope checks GitHub Releases on startup. Official `.deb` builds from v0.3.4 can install later updates after verifying a signed checksum manifest. If you upgrade from an older version that has no embedded verification key, install v0.3.5 by hand. Other install types open the Releases page when no verified package is available.
 
 ### Build from source
 
@@ -122,7 +130,9 @@ Keep feature logic in domain modules. `main.rs` and `ui/app_view.rs` only compos
 
 ## Releases and signing
 
-The release workflow refuses tags that do not match `Cargo.toml`. It hashes every package artifact and signs `SHA256SUMS` with minisign. The public key comes from the `SCOPE_UPDATE_PUBLIC_KEY` repository variable and is compiled into release builds. The private key lives only in the `SCOPE_UPDATE_SECRET_KEY` repository secret. Never commit it.
+Releases publish an amd64 `.deb`, an x86-64 AppImage, `SHA256SUMS`, and `SHA256SUMS.minisig`. RPM, Snap, and Flatpak builds are not published.
+
+Push a plain version tag such as `v0.3.5` to run the release workflow. It publishes a GitHub release titled `Scope v0.3.5` and refuses tags that do not match `Cargo.toml`. It hashes every package artifact and signs `SHA256SUMS` with minisign. The public key comes from the `SCOPE_UPDATE_PUBLIC_KEY` repository variable and is compiled into release builds. The private key lives only in the `SCOPE_UPDATE_SECRET_KEY` repository secret. Never commit it.
 
 To rotate keys, generate a new pair, replace both GitHub values, and publish a release through the normal workflow. Existing builds trust the key they were built with, so users on those builds must update by hand across a rotation.
 

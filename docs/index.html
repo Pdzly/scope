@@ -20,8 +20,8 @@
   <meta property="og:title" content="Scope, a Linux app manager for APT, Snap, Flatpak and AppImage">
   <meta property="og:description" content="One list for every app on your Linux system. Preview every update or uninstall before it runs. Free and open source.">
   <meta property="og:image" content="https://khurrambhutto.github.io/scope/image.png">
-  <meta property="og:image:width" content="1262">
-  <meta property="og:image:height" content="875">
+  <meta property="og:image:width" content="1248">
+  <meta property="og:image:height" content="880">
   <meta property="og:image:alt" content="Scope showing installed APT, Snap, Flatpak and AppImage apps in one searchable list">
   <meta property="og:site_name" content="Scope">
   <meta property="og:locale" content="en_US">
@@ -60,11 +60,11 @@
         "applicationCategory": "UtilitiesApplication",
         "applicationSubCategory": "Package manager",
         "operatingSystem": "Linux",
-        "softwareVersion": "0.3.4",
+        "softwareVersion": "0.3.5",
         "license": "https://opensource.org/licenses/MIT",
         "codeRepository": "https://github.com/khurrambhutto/scope",
         "downloadUrl": "https://github.com/khurrambhutto/scope/releases",
-        "installUrl": "https://github.com/khurrambhutto/scope/releases/tag/v0.3.4",
+        "installUrl": "https://github.com/khurrambhutto/scope/releases/tag/v0.3.5",
         "availableOnDevice": "Desktop",
         "offers": {
           "@type": "Offer",
@@ -146,7 +146,7 @@
             "name": "How do I install Scope?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Download scope_0.3.4_amd64.deb from GitHub Releases, then run sudo apt install ./scope_0.3.4_amd64.deb. To build from source, install Rust and the Linux dependencies listed in the README, then run cargo run."
+              "text": "Download scope_0.3.5_amd64.deb from GitHub Releases, then run sudo apt install ./scope_0.3.5_amd64.deb. To build from source, install Rust and the Linux dependencies listed in the README, then run cargo run."
             }
           },
           {
@@ -190,17 +190,28 @@
         <div class="hero-side">
           <p class="lead">Scope brings APT, Snap, Flatpak, and AppImage apps into one searchable list. Update or uninstall any of them, and read the exact command before it runs.</p>
           <div class="button-row">
-            <a class="button button-primary" href="https://github.com/khurrambhutto/scope/releases/download/v0.3.4/scope_0.3.4_amd64.deb" rel="noopener noreferrer">Download the .deb</a>
+            <a class="button button-primary" href="https://github.com/khurrambhutto/scope/releases/download/v0.3.5/scope_0.3.5_amd64.deb" rel="noopener noreferrer">Download the .deb</a>
             <a class="button button-ghost" href="https://github.com/khurrambhutto/scope" target="_blank" rel="noopener noreferrer">Read the source</a>
           </div>
-          <p class="hero-facts">Version 0.3.4 for Ubuntu on x86-64. Free under the MIT License.</p>
+          <p class="hero-facts">Version 0.3.5 for Ubuntu on x86-64. Free under the MIT License.</p>
+          <p class="hero-facts">Prefer a portable build? <a class="text-link" href="https://github.com/khurrambhutto/scope/releases/download/v0.3.5/Scope-0.3.5-x86_64.AppImage">Download the AppImage.</a></p>
         </div>
       </div>
 
-      <figure class="shot">
-        <img src="image.png" width="1262" height="875" alt="Scope app window with a list of installed apps from APT, Snap, Flatpak and AppImage, a search field, a source filter, and a Show all control in the footer" fetchpriority="high">
-        <figcaption>Scope 0.3.4 on Ubuntu. Apps from every source sit in one list.</figcaption>
-      </figure>
+      <div class="screenshots">
+        <figure class="shot">
+          <a href="image.png" aria-label="Open the app list screenshot at full size">
+            <img src="image.png" width="1248" height="880" alt="Scope showing installed apps, search, source filter, and Show all in the top bar" fetchpriority="high">
+          </a>
+          <figcaption>Apps from every source in one list.</figcaption>
+        </figure>
+        <figure class="shot">
+          <a href="app-details.png" aria-label="Open the app details screenshot at full size">
+            <img src="app-details.png" width="1248" height="880" alt="App Center expanded to show application files, older revisions, user data, system data, and estimated removal size" loading="lazy">
+          </a>
+          <figcaption>Expand an app to inspect its files, data, and sizes.</figcaption>
+        </figure>
+      </div>
     </section>
 
     <section class="section" id="sources" aria-labelledby="sources-title">
@@ -278,7 +289,7 @@
             <dt>Admin rights</dt>
             <dd>Standard Polkit dialog through pkexec. Scope never sees your password.</dd>
             <dt>Version</dt>
-            <dd>0.3.4</dd>
+            <dd>0.3.5</dd>
             <dt>License</dt>
             <dd>MIT</dd>
             <dt>Source</dt>
@@ -325,8 +336,8 @@
             <p>Download the .deb from GitHub Releases, then run this from the folder you saved it to. The <a class="text-link" href="install.html">install guide</a> covers building from source and removing Scope.</p>
           </div>
           <div class="command">
-            <button class="copy-button" type="button" data-copy="sudo apt install ./scope_0.3.4_amd64.deb">Copy</button>
-            <span class="line"><span class="prompt">$ </span>sudo apt install ./scope_0.3.4_amd64.deb</span>
+            <button class="copy-button" type="button" data-copy="sudo apt install ./scope_0.3.5_amd64.deb">Copy</button>
+            <span class="line"><span class="prompt">$ </span>sudo apt install ./scope_0.3.5_amd64.deb</span>
           </div>
         </div>
       </div>

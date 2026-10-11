@@ -150,5 +150,6 @@ cargo clippy
 - Safety-sensitive backend changes (probe, revalidate, deny-list, PlanStore) ship with targeted Rust tests in the same change.
 - `Cargo.lock` stays committed.
 - Releases use plain `v<version>` tags and `Scope v<version>` titles. Update Cargo metadata, the lockfile, README, and website version references together.
+- The release workflow publishes amd64 `.deb` and x86-64 AppImage packages plus `SHA256SUMS` and `SHA256SUMS.minisig`. Pushing the version tag builds and publishes the release.
 - Commit style is conventional: `feat:`, `fix:`, `chore:`, `docs:`, `style:`.
 - Update this file in the same change as any convention it describes.
