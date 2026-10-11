@@ -93,9 +93,16 @@ mod tests {
 
     #[test]
     fn publishes_each_size_while_later_rows_remain_pending() {
-        let home = tempfile::tempdir().unwrap();
-        std::fs::create_dir_all(home.path().join("snap/code")).unwrap();
-        let mut rows = locations(Some(home.path()), "code");
+        let root = tempfile::tempdir().unwrap();
+        let user = root.path().join("user-data");
+        let system = root.path().join("system-data");
+        std::fs::create_dir(&user).unwrap();
+        std::fs::create_dir(&system).unwrap();
+        // Both measurement targets belong to the fixture, independent of snapd.
+        let mut rows = vec![
+            item("Your managed data", &user, RemovalEffect::RemovedBySnap),
+            item("System managed data", &system, RemovalEffect::RemovedBySnap),
+        ];
         assert!(rows
             .iter()
             .all(|item| item.size.note.as_deref() == Some(super::super::MEASURING_NOTE)));
@@ -110,6 +117,27 @@ mod tests {
             Some(super::super::MEASURING_NOTE)
         );
         assert!(updates[1][1].size.bytes.is_some());
+    }
+
+    #[test]
+    fn missing_directory_publishes_an_unknown_size_instead_of_staying_pending() {
+        let root = tempfile::tempdir().unwrap();
+        let mut rows = vec![item(
+            "System managed data",
+            &root.path().join("missing"),
+            RemovalEffect::RemovedBySnap,
+        )];
+        let mut updates = Vec::new();
+        measure_items(&mut rows, &AtomicBool::new(false), |items| {
+            updates.push(items.to_vec())
+        });
+        assert_eq!(updates.len(), 1);
+        assert_eq!(updates[0][0].size.bytes, None);
+        assert!(!updates[0][0].size.complete);
+        assert_eq!(
+            updates[0][0].size.note.as_deref(),
+            Some("Directory not present")
+        );
     }
 
     #[test]
