@@ -33,7 +33,7 @@ pub(super) enum SourceFilter {
     Flatpak,
     AppImage,
     Desktop,
-    Steam,
+    Others,
 }
 
 impl SourceFilter {
@@ -45,7 +45,7 @@ impl SourceFilter {
             SourceFilter::Flatpak => "Flatpak",
             SourceFilter::AppImage => "AppImage",
             SourceFilter::Desktop => "Desktop",
-            SourceFilter::Steam => "Steam",
+            SourceFilter::Others => "Others",
         }
     }
 
@@ -57,7 +57,10 @@ impl SourceFilter {
             SourceFilter::Flatpak => source == PackageSource::Flatpak,
             SourceFilter::AppImage => source == PackageSource::AppImage,
             SourceFilter::Desktop => source == PackageSource::Desktop,
-            SourceFilter::Steam => source == PackageSource::Steam,
+            SourceFilter::Others => matches!(
+                source,
+                PackageSource::Steam | PackageSource::AppImage | PackageSource::Desktop
+            ),
         }
     }
 }
@@ -204,7 +207,7 @@ impl ScopeApp {
                         (SourceFilter::Flatpak, "Flatpak"),
                         (SourceFilter::AppImage, "AppImage"),
                         (SourceFilter::Desktop, "Desktop"),
-                        (SourceFilter::Steam, "Steam"),
+                        (SourceFilter::Others, "Others"),
                     ];
                     options
                         .into_iter()
@@ -274,5 +277,19 @@ mod tests {
         assert!(!SourceFilter::AppImage.matches(PackageSource::Snap));
         assert!(SourceFilter::Desktop.matches(PackageSource::Desktop));
         assert!(!SourceFilter::Desktop.matches(PackageSource::Apt));
+        for source in [
+            PackageSource::Steam,
+            PackageSource::AppImage,
+            PackageSource::Desktop,
+        ] {
+            assert!(SourceFilter::Others.matches(source));
+        }
+        for source in [
+            PackageSource::Apt,
+            PackageSource::Snap,
+            PackageSource::Flatpak,
+        ] {
+            assert!(!SourceFilter::Others.matches(source));
+        }
     }
 }
