@@ -35,6 +35,8 @@ src/                      GPUI app
     system/               command execution, timeouts, pkexec
     snap_details/         read-only Snap revisions, snapshots and bounded data sizes
     package_details/      shared footprint DTOs, bounded measurement, and per-source inspection
+    tool_managers/        uv/pipx/Cargo receipts, rooted identity, update checks,
+                          ownership validation, and shared preview/apply commands
     package.rs            InstalledPackage plus source/scope enums
   theme.rs                palette and formatting helpers
   ui/                     screen state and composition
@@ -90,6 +92,13 @@ Scanner and list filters are deliberate product choices:
 - Snap hides runtimes and bases (`core*`, `snapd`, `bare`, `gtk-*`, `gnome-*`, `*-gtk3`). A matching visible `.desktop` entry classifies a snap as GUI/CLI according to its `Terminal` flag; a `/snap/bin/<snap-name>` command can classify it as CLI.
 - Flatpak scans user and system as separate installs. Keys are `flatpak:user:<id>` and `flatpak:system:<id>`, and the DTO's `install_scope` is the single source of truth for which scope every later command uses. Never re-guess scope at preview or apply time.
 - Missing Flatpak scope is an error at preview, probe, and apply. Never default it to system scope.
+- uv, pipx, and Cargo scans represent whole tool installations, not one row per exposed command. Stable keys include source, root hash, and manager package/environment name. Capture an absolute manager executable and explicit roots/environment in `ToolInstallation`; retain proxy basenames for Cargo and mise. Preview and apply use that context, not a fresh PATH or root guess. Manage only verified user-owned roots inside HOME, without pkexec.
+- uv scans persistent tool receipts, excluding uvx caches and project environments. Update checks use read-only `uv pip compile --no-build` with stored requirements, constraints, overrides, and options; apply uses native `uv tool upgrade`, preserving installation constraints. An unavailable resolution is not an up-to-date result.
+- pipx scans JSON metadata and retains suffixed environment identities and pip options. Updates upgrade the main package without requesting injected-package upgrades; dependency resolution and shared packaging maintenance still follow pipx behavior. Preview explains version-constraint removal and lists injected packages removed with the environment. Explicit pins block updates, not uninstall.
+- Cargo scans tracked binary crates, cross-checking `.crates2.json` build settings against `.crates.toml` ownership. Never infer installs from `cargo --list` or update them with `cargo update`. Rebuilds retain origin, version range, selected binaries, features, profile, and target, and never force overwrite. Git revisions are included in raw `version`, with the package release in `display_version`, so unchanged release labels still invalidate stale plans and details. Update discovery supports crates.io and tracked Git branches; fixed revisions remain fixed.
+- Git/local Python sources, local Cargo sources, and custom Cargo registries have explicit unavailable-update notes until their release checks are supported. Incomplete/untracked receipts and global pipx installs are not managed. Keep failed/unknown update checks distinct from up to date; bound source update checks to 30 seconds with two query workers. Re-probe after tool operations before reporting a changed version.
+- Tool inspection measures dedicated uv/pipx environments or individually owned Cargo binaries. Never walk shared bin directories, caches, interpreters, toolchains, or guessed personal data. Verify exposed command ownership, reject conflicting/symlinked environments, and deduplicate every owned launcher by executable path. Tool previews show the rooted command and removal effects; sensitive pip options are redacted.
+- The optional `tool_managers::live_tests::disposable` tests install, update, and remove fixtures only in private temporary roots. Ordinary `cargo test` remains hermetic. User tool updates have a 30-minute command timeout; timeout stops the operation's unprivileged build process group.
 - AppImage scans `/opt`, `/usr/local/bin`, `~/Applications`, `~/apps`, `~/AppImages`, `~/Downloads`, `~/.local/bin` for ELF+`AI` magic files. Valid AppImages appear in the main list, but uninstall and update actions remain unsupported; `safety::check_appimage` denies every AppImage path, so preview yields a protected plan and apply-time revalidation fails closed.
 - Visible launchers in the user's applications directory that no APT/Snap/Flatpak/AppImage scanner owns appear as `Desktop` apps. They are discovery-only and protected from uninstall/update. APT package file lists associate `.desktop` launchers and icons with package IDs when their names differ.
 - Steam reads installed manifests from native Steam aliases/XDG roots and Flatpak Steam roots, including every reachable `libraryfolders.vdf` library. It uses binary `appinfo` `common.type`: `game`/`demo` are `Game`, `application` is `Gui`, and `tool` or missing/unknown metadata stays out of the default list until **Show all**. Exact Steam desktop launchers are owned by Steam to prevent duplicate Desktop rows. Steam derives update state locally from a valid, nonzero numeric manifest `StateFlags`: `UpdateRequired` is mask `0x2` (decimal 2, bit offset 1); with that mask, paused takes precedence, then running, downloading, staging, or committing means in progress, while started alone remains pending. Missing, malformed, or zero flags are `Unknown`; valid flags without `UpdateRequired` are `NoUpdateRecorded`, not confirmation that a game is up to date. Do not infer a target build or fabricate `update_version`. `steam_update_status` must retain its serde default so cached packages without that field remain unknown. It refreshes only on a normal scan or rescan and never checks Steam online. Steam details use the shared inline panel, with informational unknown game-file and user-data sizes; Scope does not inspect Steam footprints. Steam remains read-only: Scope never updates or uninstalls it, and **Open in Steam** opens `steam://nav/games/details/<appid>`.
@@ -106,6 +115,9 @@ Commands that previews display and apply runs:
 | Snap | `pkexec snap remove <pkg>` | `pkexec snap refresh <pkg>` |
 | Flatpak user | `flatpak uninstall -y --user <id>` | `flatpak update -y --user <id>` |
 | Flatpak system | `pkexec flatpak uninstall -y --system <id>` | `pkexec flatpak update -y --system <id>` |
+| uv tool | `uv tool uninstall <pkg>` in the recorded tool/bin roots | `uv tool upgrade <pkg>` in those roots |
+| pipx user | `pipx uninstall <environment>` in the recorded home/bin/man roots | `pipx upgrade <environment>` with recorded pip options |
+| Cargo user | `cargo uninstall --root <root> <pkg>` | `cargo install --root <root>` with the original source and build settings |
 | AppImage | not supported yet — protected plan, no command runs | not supported yet — protected plan, no command runs |
 | Steam | none — read-only | none — use Open in Steam |
 
@@ -137,7 +149,7 @@ Ask first:
 
 ## Phase fence
 
-Done: unified package view, uninstall (preview + apply, all sources), update (preview + apply for APT/Snap/Flatpak), self-updater. AppImage auto-update is an explicit stub.
+Done: unified package view, uninstall (preview + apply, all sources), update (preview + apply for APT/Snap/Flatpak and verified user uv/pipx/Cargo installs), self-updater. AppImage auto-update is an explicit stub.
 
 Until updates are complete and tested, do not build whole-system clean, disk analyze, purge, leftover removal, or status dashboards. Those wait behind this fence.
 
@@ -150,6 +162,7 @@ cargo clippy
 ```
 
 - All of the above pass and the diff contains only the requested change.
+- Contributor pull requests must leave the website under `docs/` unchanged; website contributions are not accepted. App documentation outside `docs/` remains open to contributions, as described in `CONTRIBUTING.md`.
 - Safety-sensitive backend changes (probe, revalidate, deny-list, PlanStore) ship with targeted Rust tests in the same change.
 - `Cargo.lock` stays committed.
 - Releases use plain `v<version>` tags and `Scope v<version>` titles. Update Cargo metadata, the lockfile, README, and website version references together.

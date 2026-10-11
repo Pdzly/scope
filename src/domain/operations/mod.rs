@@ -24,6 +24,10 @@ use crate::domain::package::{InstallScope, PackageSource};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "source", rename_all = "lowercase")]
 pub enum OperationTarget {
+    Tool {
+        package_id: String,
+        installation: Box<crate::domain::tool_managers::ToolInstallation>,
+    },
     Apt {
         package_id: String,
     },
@@ -49,6 +53,18 @@ pub enum OperationTarget {
 impl OperationTarget {
     pub fn from_package(package: &InstalledPackage) -> anyhow::Result<Self> {
         match package.source {
+            PackageSource::Uv | PackageSource::Pipx | PackageSource::Cargo => {
+                let installation = package.tool_installation.clone().ok_or_else(|| {
+                    anyhow::anyhow!("Tool installation metadata missing. Rescan first.")
+                })?;
+                if installation.source != package.source {
+                    anyhow::bail!("Tool source mismatch");
+                }
+                Ok(Self::Tool {
+                    package_id: package.package_id.clone(),
+                    installation,
+                })
+            }
             PackageSource::Apt => Ok(Self::Apt {
                 package_id: package.package_id.clone(),
             }),
@@ -75,6 +91,7 @@ impl OperationTarget {
 
     pub fn source(&self) -> PackageSource {
         match self {
+            Self::Tool { installation, .. } => installation.source,
             Self::Apt { .. } => PackageSource::Apt,
             Self::Snap { .. } => PackageSource::Snap,
             Self::Flatpak { .. } => PackageSource::Flatpak,
@@ -86,7 +103,9 @@ impl OperationTarget {
 
     pub fn id(&self) -> &str {
         match self {
-            Self::Apt { package_id } | Self::Snap { package_id } => package_id,
+            Self::Tool { package_id, .. }
+            | Self::Apt { package_id }
+            | Self::Snap { package_id } => package_id,
             Self::Flatpak { app_id, .. } | Self::Steam { app_id } => app_id,
             Self::AppImage { path } => path.to_str().unwrap_or(""),
             Self::Desktop { desktop_file } => desktop_file.to_str().unwrap_or(""),

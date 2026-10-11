@@ -223,13 +223,7 @@ pub fn spawn_apply(plans: PlanStore, plan_id: String, tx: mpsc::UnboundedSender<
                     return;
                 }
             }
-            let probed = match crate::domain::operations::probe::probe_package(
-                plan.target.source(),
-                plan.target.id(),
-                plan.target.install_scope(),
-            )
-            .await
-            {
+            let probed = match crate::domain::operations::probe::probe_target(&plan).await {
                 Ok(probed) => probed,
                 Err(e) => {
                     let _ = tx.unbounded_send(OpMsg::Done(failed(format!(

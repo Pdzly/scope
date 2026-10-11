@@ -29,11 +29,26 @@ pub fn is_visible(pkg: &InstalledPackage, show_all: bool) -> bool {
 /// True when the backend safety policy permits an uninstall plan.
 pub fn can_uninstall(pkg: &InstalledPackage) -> bool {
     matches!(pkg.app_kind, AppKind::Gui | AppKind::Cli)
+        && (!crate::domain::tool_managers::is_tool_source(pkg.source)
+            || pkg
+                .tool_installation
+                .as_ref()
+                .is_some_and(|i| i.protection_reason.is_none()))
         && !safety::check_package(pkg.source, &pkg.package_id).protected
 }
 
 /// Why the backend currently blocks uninstalling this package, if applicable.
 pub fn uninstall_block_reason(pkg: &InstalledPackage) -> Option<String> {
+    if crate::domain::tool_managers::is_tool_source(pkg.source) && pkg.tool_installation.is_none() {
+        return Some("Tool installation metadata missing. Rescan before continuing.".into());
+    }
+    if let Some(reason) = pkg
+        .tool_installation
+        .as_ref()
+        .and_then(|i| i.protection_reason.clone())
+    {
+        return Some(reason);
+    }
     let protection = safety::check_package(pkg.source, &pkg.package_id);
     protection.reason.or_else(|| {
         matches!(pkg.app_kind, AppKind::Unknown)

@@ -31,6 +31,7 @@ Safety-sensitive backend changes (probe, revalidate, deny-list, PlanStore) must 
 ## Pull requests
 
 - Create a branch from `main` and keep each pull request focused on one change.
+- Leave the website under `docs/` unchanged. Website contributions, including design, content, assets, and SEO changes, are not accepted. Contributions to app documentation such as `README.md` are welcome.
 - Use conventional commit messages: `feat:`, `fix:`, `chore:`, `docs:`, or `style:`.
 - Fill in the pull request template, including how you tested the change.
 - Do not commit build output or local tooling files.

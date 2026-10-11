@@ -36,6 +36,15 @@ pub(super) fn detail_element(
                     .child("Steam's last recorded status; open Steam to check for newer updates."),
             )
         })
+        .when_some(pkg.update_note.clone(), |this, note| {
+            this.child(
+                div()
+                    .pt(px(12.))
+                    .text_size(px(12.))
+                    .text_color(theme::text_dim())
+                    .child(note),
+            )
+        })
         .when_some(listing::uninstall_block_reason(pkg), |this, reason| {
             this.child(
                 div()

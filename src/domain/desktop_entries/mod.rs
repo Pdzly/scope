@@ -257,10 +257,28 @@ impl DesktopIndex {
                     .map(Arc::as_ref)
                     .or_else(|| self.lookup_stripped(package_id))
             }
+            crate::domain::package::PackageSource::Uv
+            | crate::domain::package::PackageSource::Pipx
+            | crate::domain::package::PackageSource::Cargo => None,
             crate::domain::package::PackageSource::Desktop => {
                 self.by_path.get(Path::new(package_id)).map(Arc::as_ref)
             }
         }
+    }
+
+    /// Attribute tool launchers by executable paths, never a similar display name.
+    pub fn lookup_package(
+        &self,
+        pkg: &crate::domain::package::InstalledPackage,
+    ) -> Option<&DesktopApp> {
+        if let Some(installation) = &pkg.tool_installation {
+            return self
+                .apps
+                .iter()
+                .find(|app| tool_owns_launcher(installation, app))
+                .map(Arc::as_ref);
+        }
+        self.lookup(pkg.source, &pkg.package_id, &pkg.name)
     }
 
     fn lookup_apt(&self, package_id: &str, name: &str) -> Option<&DesktopApp> {
@@ -314,7 +332,7 @@ impl DesktopIndex {
     ) -> Vec<crate::domain::package::InstalledPackage> {
         let mut matched: HashSet<&str> = packages
             .iter()
-            .filter_map(|pkg| self.lookup(pkg.source, &pkg.package_id, &pkg.name))
+            .filter_map(|pkg| self.lookup_package(pkg))
             .map(|app| app.id.as_str())
             .collect();
         for package in packages
@@ -330,6 +348,12 @@ impl DesktopIndex {
             .iter()
             .filter(|app| app.file_path.starts_with(user_applications))
             .filter(|app| !matched.contains(app.id.as_str()))
+            .filter(|app| {
+                !packages
+                    .iter()
+                    .filter_map(|pkg| pkg.tool_installation.as_ref())
+                    .any(|installation| tool_owns_launcher(installation, app))
+            })
             .map(|app| {
                 use crate::domain::package::{AppKind, InstalledPackage, PackageSource};
 
@@ -447,6 +471,24 @@ fn steam_app_id_from_exec(exec: &str) -> Option<&str> {
         }
     }
     app_id
+}
+
+fn tool_owns_launcher(
+    installation: &crate::domain::tool_managers::ToolInstallation,
+    app: &DesktopApp,
+) -> bool {
+    if installation.protection_reason.is_some() {
+        return false;
+    }
+    app.executable.as_ref().is_some_and(|path| {
+        let resolved = path.canonicalize().ok();
+        installation.executables.iter().any(|executable| {
+            path == executable
+                || resolved.as_ref().is_some_and(|resolved| {
+                    executable.canonicalize().ok().as_ref() == Some(resolved)
+                })
+        })
+    })
 }
 
 #[cfg(test)]
@@ -646,5 +688,49 @@ mod tests {
             steam_app_id_from_exec("steam steam://rungameid/42 steam://rungameid/43"),
             None
         );
+    }
+
+    #[test]
+    fn all_owned_tool_launchers_are_excluded_from_unmanaged_rows() {
+        use crate::domain::{
+            package::InstalledPackage,
+            tool_managers::{ToolInstallation, UpdateRecipe},
+        };
+        let directory = tempfile::tempdir().unwrap();
+        let commands = [
+            directory.path().join("first"),
+            directory.path().join("second"),
+        ];
+        let apps = commands
+            .iter()
+            .enumerate()
+            .map(|(index, command)| {
+                let mut launcher = app(&format!("tool-{index}"), "Tool", command.to_str().unwrap());
+                launcher.file_path = directory.path().join(format!("tool-{index}.desktop"));
+                launcher.executable = Some(command.clone());
+                launcher
+            })
+            .collect();
+        let index = DesktopIndex::from_apps(apps);
+        let mut pkg = InstalledPackage::new(PackageSource::Pipx, "demo");
+        pkg.tool_installation = Some(Box::new(ToolInstallation {
+            source: PackageSource::Pipx,
+            manager: "/bin/true".into(),
+            root: directory.path().into(),
+            environment: None,
+            executables: commands.to_vec(),
+            env: Default::default(),
+            receipt_hash: "receipt".into(),
+            protection_reason: None,
+            update: UpdateRecipe::Unsupported("test".into()),
+            notes: vec![],
+        }));
+        assert!(index.lookup_package(&pkg).is_some());
+        assert!(index
+            .unmanaged_apps_in(&[pkg.clone()], directory.path())
+            .is_empty());
+        pkg.tool_installation.as_mut().unwrap().protection_reason =
+            Some("Conflicting command ownership".into());
+        assert!(index.lookup_package(&pkg).is_none());
     }
 }

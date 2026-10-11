@@ -275,6 +275,8 @@ fn measured_size(bytes: u64) -> String {
 
 fn loading_labels(source: PackageSource) -> &'static [&'static str] {
     match source {
+        PackageSource::Uv | PackageSource::Pipx => &["Environment", "Commands", "User data"],
+        PackageSource::Cargo => &["Binaries", "User data"],
         PackageSource::Snap => &["Application", "Older revisions", "User data", "System data"],
         PackageSource::Apt => &["Application", "Configuration", "User data"],
         PackageSource::Flatpak => &["Application", "User data"],
