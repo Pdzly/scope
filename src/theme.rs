@@ -54,27 +54,6 @@ pub fn format_size(bytes: u64) -> String {
     format!("{value:.digits$} {}", UNITS[unit])
 }
 
-/// Footer status line, matching the TypeScript `formatAppCount`.
-pub fn format_app_count(shown: usize, total: usize) -> String {
-    format_item_count(shown, total, "app", "apps")
-}
-
-/// Footer status for the unfiltered inventory view.
-pub fn format_all_count(shown: usize, total: usize) -> String {
-    format_item_count(shown, total, "item", "items")
-}
-
-fn format_item_count(shown: usize, total: usize, singular: &str, plural: &str) -> String {
-    if shown == total {
-        format!(
-            "Showing {total} {}",
-            if total == 1 { singular } else { plural }
-        )
-    } else {
-        format!("Showing {shown} of {total} {plural}")
-    }
-}
-
 /// Elapsed seconds as `m:ss`.
 pub fn format_elapsed(seconds: u64) -> String {
     format!("{}:{:02}", seconds / 60, seconds % 60)
@@ -268,21 +247,6 @@ mod tests {
         assert_eq!(format_size(1024 * 1024), "1.0 MB");
         assert_eq!(format_size(5 * 1024 * 1024 * 1024), "5.0 GB");
         assert_eq!(format_size(2 * 1024 * 1024 * 1024 * 1024), "2.0 TB");
-    }
-
-    #[test]
-    fn format_app_count_matches_the_typescript_copy() {
-        assert_eq!(format_app_count(3, 3), "Showing 3 apps");
-        assert_eq!(format_app_count(1, 1), "Showing 1 app");
-        assert_eq!(format_app_count(0, 0), "Showing 0 apps");
-        assert_eq!(format_app_count(2, 10), "Showing 2 of 10 apps");
-    }
-
-    #[test]
-    fn format_all_count_names_inventory_items() {
-        assert_eq!(format_all_count(12, 12), "Showing 12 items");
-        assert_eq!(format_all_count(1, 1), "Showing 1 item");
-        assert_eq!(format_all_count(5, 20), "Showing 5 of 20 items");
     }
 
     #[test]

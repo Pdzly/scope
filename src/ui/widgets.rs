@@ -19,12 +19,12 @@ pub(super) fn view_toggle_button(
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
     Button::new(id)
-        .label(label)
+        .accessibility_label(label)
         .ghost()
         .rounded(px(18.))
         .h(px(34.))
         .px(px(16.))
-        .text_size(px(13.))
+        .child(div().text_size(px(12.)).line_height(px(16.)).child(label))
         .selected(active)
         .toggled(active)
         .on_click(on_click)

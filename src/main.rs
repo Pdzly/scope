@@ -106,7 +106,7 @@ fn main() {
             })
             .detach();
 
-            let bounds = Bounds::centered(None, size(px(1120.), px(740.)), cx);
+            let bounds = Bounds::centered(None, size(px(1060.), px(780.)), cx);
             // Opened directly (not via gpui_kit::open_window) so no Base
             // Root wraps the view: kit's Root draws a 1px WindowBorder frame
             // on Linux that we don't want. Plain kit components only need

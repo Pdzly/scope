@@ -692,42 +692,9 @@ impl Render for ScopeApp {
         let corner_radius = px(if floating { 12. } else { 0. });
         let entity = cx.entity().downgrade();
         let list_entity = cx.entity();
-        let total = self
-            .scan
-            .as_ref()
-            .map(|scan| {
-                scan.packages
-                    .iter()
-                    .filter(|pkg| crate::domain::listing::is_visible(pkg, self.show_all))
-                    .count()
-            })
-            .unwrap_or(0);
-        let rows_len = self.packages.entries.len();
-
         let list_element = self.list_element(&list_entity);
 
         let banner_children = self.banner_stack(&entity);
-
-        let footer = if self.loading {
-            String::new()
-        } else if self.show_all {
-            theme::format_all_count(rows_len, total)
-        } else {
-            theme::format_app_count(rows_len, total)
-        };
-        let show_all_button = super::widgets::view_toggle_button(
-            "show-all",
-            if self.show_all {
-                "Show apps"
-            } else {
-                "Show all"
-            },
-            self.show_all,
-            act(&entity, |this, cx| {
-                this.show_all = !this.show_all;
-                cx.notify();
-            }),
-        );
 
         let operation_footer = self
             .operation_status
@@ -819,29 +786,20 @@ impl Render for ScopeApp {
                     .pb(px(16.))
                     .child(list_element),
             )
-            .child(
-                div()
-                    .flex_none()
-                    .px(px(32.))
-                    .py(px(2.))
-                    .min_h(px(0.))
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    .gap(px(16.))
-                    .text_size(px(12.))
-                    .text_color(text_faint())
-                    .child(div().flex_none().w(px(136.)).child(footer))
-                    .when_some(operation_footer, |this, status| this.child(status))
-                    .child(
-                        div()
-                            .flex_none()
-                            .w(px(136.))
-                            .flex()
-                            .justify_end()
-                            .child(show_all_button),
-                    ),
-            )
+            .when_some(operation_footer, |this, status| {
+                this.child(
+                    div()
+                        .flex_none()
+                        .px(px(32.))
+                        .pb(px(16.))
+                        .flex()
+                        .items_center()
+                        .text_size(px(12.))
+                        .line_height(px(16.))
+                        .text_color(text_faint())
+                        .child(status),
+                )
+            })
             .when_some(dropdown_backdrop, |this, backdrop| this.child(backdrop))
             .when_some(dialog_el, |this, dialog| this.child(dialog))
             .when(floating, |this| this.children(resize_zones()))

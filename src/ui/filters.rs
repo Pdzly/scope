@@ -15,7 +15,7 @@ use crate::domain::package::PackageSource;
 use crate::theme::{self, border, elev2, text, text_dim, text_faint};
 
 use super::app_view::{act, ScopeApp};
-use super::widgets::{menu_item, select_widget};
+use super::widgets::{menu_item, select_widget, view_toggle_button};
 
 // ---- Filters ---------------------------------------------------------------
 
@@ -165,6 +165,20 @@ impl ScopeApp {
         let entity = cx.entity().downgrade();
         let open = self.open_select;
 
+        let show_all_button = view_toggle_button(
+            "show-all",
+            if self.show_all {
+                "Show apps"
+            } else {
+                "Show all"
+            },
+            self.show_all,
+            act(&entity, |this, cx| {
+                this.show_all = !this.show_all;
+                cx.notify();
+            }),
+        );
+
         let source_select = select_widget(
             "source-select",
             self.source_filter.label(),
@@ -231,6 +245,7 @@ impl ScopeApp {
             .py(px(12.))
             .child(self.search_box(cx))
             .child(div().flex_1())
+            .child(show_all_button)
             .child(source_select)
             .child(rescan)
     }

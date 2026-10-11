@@ -50,7 +50,7 @@ Use the **Apps / Updates** toggle at the top to switch between installed apps an
 
 The default list shows GUI apps and command-line tools that you would expect to manage. AppImages and user-local desktop launchers appear for discovery only, and their update and uninstall actions are disabled.
 
-Turn on **Show all** in the footer to see every row the scanners return, including libraries and system components. Show all does not bypass safety checks. Protected packages stay locked even when it is on.
+Turn on **Show all** to the right of the search bar to see every row the scanners return, including libraries and system components. Show all does not bypass safety checks. Protected packages stay locked even when it is on.
 
 Every update or uninstall follows the same steps:
 
