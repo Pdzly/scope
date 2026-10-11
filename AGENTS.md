@@ -68,6 +68,7 @@ docs/                     GitHub Pages site
 - UI colors come from `theme.rs`: dark red surfaces, burgundy borders, coral emphasis. Kit-owned controls use `theme::init`; actions share the pill button in `ui/widgets.rs`. Keep source colors confined to app icons and source indicators.
 - Use bundled Work Sans for all UI text, including paths and commands. Regular, Medium, Semibold, and Bold fonts and their OFL license live in `assets/fonts/`; `theme::init` registers them. Snap breakdown labels are semibold, paths are quieter, and sizes align right. Confirmation metadata shares the breakdown's label width, row padding, and spacing tokens in `theme.rs`.
 - List app names use Work Sans Medium. Expanded Snap rows show an estimated `Removes ~<size>` summary beside Uninstall, excluding retained and unverified items. Partial estimates carry `+`; unavailable measurements stay explicit. Omit the generic classic-Snap coverage note from the breakdown, while retaining actual inspection warnings and incomplete-size notes.
+- Snap inline details open immediately with stable placeholder rows, then stream managed paths and individual directory measurements. Partial results stay separate from the 30-second cache; expired complete details stay visible during refresh. Preserve request identity, cancellation, bounded inspection workers, and fresh complete inspection for uninstall previews. Keep the existing measured-height easing and reduced-motion behavior.
 
 ## GPUI notes
 

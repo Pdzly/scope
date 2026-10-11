@@ -106,11 +106,21 @@ pub fn write_cache(scan: &Scan) {
 pub fn spawn_snap_details(
     name: String,
     cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
-    tx: oneshot::Sender<crate::domain::snap_details::SnapDetails>,
+    tx: mpsc::UnboundedSender<crate::domain::snap_details::InspectionUpdate>,
 ) {
     std::thread::spawn(move || {
-        let details = block_on(crate::domain::snap_details::inspect(&name, cancel));
-        let _ = tx.send(details);
+        let progress = tx.clone();
+        let details = block_on(crate::domain::snap_details::inspect_progressive(
+            &name,
+            cancel,
+            move |update| {
+                let _ = progress.unbounded_send(update);
+            },
+        ));
+        let _ = tx.unbounded_send(crate::domain::snap_details::InspectionUpdate {
+            details,
+            complete: true,
+        });
     });
 }
 

@@ -1,6 +1,6 @@
 //! Lazy inspection wiring and the Snap removal breakdown shared with previews.
 
-use futures::channel::oneshot;
+use futures::{channel::mpsc, StreamExt};
 use gpui_kit::assets::IconName;
 use gpui_kit::component::Icon;
 use gpui_kit::prelude::*;
@@ -34,18 +34,19 @@ impl ScopeApp {
             return;
         };
         cx.spawn(async move |this, cx| {
-            // Rapid selection changes should not start filesystem work for every click.
-            cx.background_executor()
-                .timer(std::time::Duration::from_millis(150))
-                .await;
             if request.cancel.load(std::sync::atomic::Ordering::Relaxed) {
                 return;
             }
-            let (tx, rx) = oneshot::channel();
+            let (tx, mut rx) = mpsc::unbounded();
             backend::spawn_snap_details(pkg.package_id.clone(), request.cancel, tx);
-            if let Ok(details) = rx.await {
+            while let Some(update) = rx.next().await {
                 this.update(cx, |this, cx| {
-                    if this.snap_details.accept(request.generation, &pkg, details) {
+                    if this.snap_details.accept(
+                        request.generation,
+                        &pkg,
+                        update.details,
+                        update.complete,
+                    ) {
                         if let Some(index) = this
                             .packages
                             .entries
@@ -119,14 +120,56 @@ pub(super) fn breakdown(details: Option<&SnapDetails>) -> AnyElement {
             );
         }
     } else {
-        content = content.child(
-            div()
-                .text_size(px(12.))
-                .text_color(theme::text_dim())
-                .child("Reading revisions, data and recovery snapshots…"),
-        );
+        content = content.child(loading_rows());
     }
     content.into_any_element()
+}
+
+fn loading_rows() -> AnyElement {
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(3.))
+        .children(
+            ["Application", "Older revisions", "User data", "System data"]
+                .into_iter()
+                .map(|label| {
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(theme::DETAIL_ROW_GAP))
+                        .py(px(theme::DETAIL_ROW_PADDING))
+                        .text_size(px(13.))
+                        .line_height(px(18.))
+                        .child(
+                            div()
+                                .flex_none()
+                                .w(px(theme::DETAIL_LABEL_WIDTH))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .child(label),
+                        )
+                        .child(
+                            div().flex_1().min_w(px(0.)).child(
+                                div()
+                                    .h(px(8.))
+                                    .w_full()
+                                    .max_w(px(300.))
+                                    .rounded(px(4.))
+                                    .bg(theme::border()),
+                            ),
+                        )
+                        .child(
+                            div()
+                                .flex_none()
+                                .w(px(80.))
+                                .text_right()
+                                .text_size(px(12.))
+                                .text_color(theme::text_dim())
+                                .child("…"),
+                        )
+                }),
+        )
+        .into_any_element()
 }
 
 /// Compact estimate of managed items, not net disk space freed.
@@ -146,9 +189,11 @@ pub(super) fn removal_summary(details: Option<&SnapDetails>) -> String {
 }
 
 fn detail_row(item: &DetailItem) -> AnyElement {
+    let pending = item.size.note.as_deref() == Some(crate::domain::snap_details::MEASURING_NOTE);
     let size = match item.size.bytes {
         Some(bytes) if item.size.complete => measured_size(bytes),
         Some(bytes) => format!("{}+", measured_size(bytes)),
+        None if pending => "Measuring…".into(),
         None => "Unknown".into(),
     };
     let icon = match item.effect {
@@ -169,7 +214,7 @@ fn detail_row(item: &DetailItem) -> AnyElement {
             .text_color(theme::text_dim())
             .child(location),
     );
-    if !item.size.complete {
+    if !item.size.complete && !pending {
         if let Some(note) = &item.size.note {
             path = path.child(
                 div()

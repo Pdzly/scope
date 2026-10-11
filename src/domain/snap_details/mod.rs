@@ -2,19 +2,18 @@
 
 mod api;
 mod data;
+mod inspection;
 mod measurement;
 mod removal_size;
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, OnceLock};
-
 use serde::{Deserialize, Serialize};
-use tokio::sync::Semaphore;
 
+pub use inspection::{inspect, inspect_progressive, InspectionUpdate};
 pub use measurement::Measurement;
 
 pub const CLASSIC_COVERAGE_NOTE: &str = "This classic snap can store files outside Snap's managed directories. Those files are outside this breakdown.";
 pub const NO_SNAPSHOTS_NOTE: &str = "No existing recovery snapshots were reported for this app.";
+pub const MEASURING_NOTE: &str = "Measuring…";
 
 /// A manager-owned item and what normal Snap removal does to it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,51 +38,6 @@ pub struct SnapDetails {
     pub summary: Option<String>,
     pub items: Vec<DetailItem>,
     pub warnings: Vec<String>,
-}
-
-/// Inspect one snap without changing snapd state. At most two inspections run at once.
-pub async fn inspect(name: &str, cancel: Arc<AtomicBool>) -> SnapDetails {
-    if !valid_name(name) {
-        return unavailable("Invalid Snap instance name");
-    }
-    static WORKERS: OnceLock<Arc<Semaphore>> = OnceLock::new();
-    let workers = WORKERS.get_or_init(|| Arc::new(Semaphore::new(2)));
-    let permit = tokio::time::timeout(
-        std::time::Duration::from_secs(1),
-        workers.clone().acquire_owned(),
-    )
-    .await;
-    let Ok(Ok(permit)) = permit else {
-        return unavailable("Snap inspection is busy. Reopen details to try again.");
-    };
-    if cancel.load(Ordering::Relaxed) {
-        return unavailable("Inspection cancelled");
-    }
-    let (revisions, snapshots) = tokio::join!(api::revisions(name), api::snapshots());
-    let mut details = from_metadata(name, revisions, snapshots);
-    if cancel.load(Ordering::Relaxed) {
-        return details;
-    }
-    let name = name.to_owned();
-    let data = tokio::task::spawn_blocking(move || {
-        // Hold the inspection slot until filesystem work actually ends.
-        let _permit = permit;
-        data::items(
-            std::env::var_os("HOME")
-                .map(std::path::PathBuf::from)
-                .as_deref(),
-            &name,
-            &cancel,
-        )
-    })
-    .await;
-    match data {
-        Ok(items) => details.items.extend(items),
-        Err(_) => details
-            .warnings
-            .push("Managed data could not be measured".into()),
-    }
-    details
 }
 
 fn unavailable(message: &str) -> SnapDetails {
@@ -111,11 +65,18 @@ fn manager_size(bytes: Option<u64>) -> Measurement {
     }
 }
 
+#[cfg(test)]
 fn from_metadata(
     name: &str,
     revisions: anyhow::Result<Vec<api::Revision>>,
     snapshots: anyhow::Result<Vec<api::SnapshotSet>>,
 ) -> SnapDetails {
+    let mut details = from_revisions(name, revisions);
+    add_snapshots(&mut details, name, snapshots);
+    details
+}
+
+fn from_revisions(name: &str, revisions: anyhow::Result<Vec<api::Revision>>) -> SnapDetails {
     let mut details = SnapDetails {
         summary: None,
         items: Vec::new(),
@@ -183,6 +144,14 @@ fn from_metadata(
             .warnings
             .push("Application revisions could not be read from Snap.".into()),
     }
+    details
+}
+
+fn add_snapshots(
+    details: &mut SnapDetails,
+    name: &str,
+    snapshots: anyhow::Result<Vec<api::SnapshotSet>>,
+) {
     match snapshots {
         Ok(sets) => {
             let before = details.items.len();
@@ -208,12 +177,12 @@ fn from_metadata(
             .warnings
             .push("Existing recovery snapshots could not be read from Snap.".into()),
     }
-    details
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{atomic::AtomicBool, Arc};
 
     #[tokio::test]
     async fn cancelled_inspection_does_not_read_metadata_or_directories() {

@@ -15,6 +15,7 @@ pub(super) struct SnapDetailState {
     generation: u64,
     cancel: Option<Arc<AtomicBool>>,
     cache: HashMap<(String, String), (Instant, SnapDetails)>,
+    partial: Option<(String, String, SnapDetails)>,
 }
 
 pub(super) struct DetailRequest {
@@ -25,6 +26,7 @@ pub(super) struct DetailRequest {
 impl SnapDetailState {
     pub fn cancel(&mut self) {
         self.generation += 1;
+        self.partial = None;
         if let Some(cancel) = self.cancel.take() {
             cancel.store(true, Ordering::Relaxed);
         }
@@ -37,10 +39,13 @@ impl SnapDetailState {
 
     pub fn begin(&mut self, pkg: &InstalledPackage) -> Option<DetailRequest> {
         self.cancel();
-        self.cache.retain(|_, (created, details)| {
-            created.elapsed() < CACHE_TTL && !details.items.is_empty()
-        });
-        if self.get(pkg).is_some() {
+        if self
+            .cache
+            .get(&(pkg.key.clone(), pkg.version.clone()))
+            .is_some_and(|(created, details)| {
+                created.elapsed() < CACHE_TTL && !details.items.is_empty()
+            })
+        {
             return None;
         }
         let cancel = Arc::new(AtomicBool::new(false));
@@ -56,23 +61,49 @@ impl SnapDetailState {
         generation: u64,
         pkg: &InstalledPackage,
         details: SnapDetails,
+        complete: bool,
     ) -> bool {
         if generation != self.generation {
             return false;
         }
+        if !complete {
+            // Preserve a complete cached layout while refreshing its values.
+            if self
+                .cache
+                .get(&(pkg.key.clone(), pkg.version.clone()))
+                .is_some_and(|(_, details)| !details.items.is_empty())
+            {
+                return false;
+            }
+            self.partial = Some((pkg.key.clone(), pkg.version.clone(), details));
+            return true;
+        }
         if self.cache.len() >= 32 {
-            self.cache.clear();
+            if let Some(oldest) = self
+                .cache
+                .iter()
+                .min_by_key(|(_, (created, _))| *created)
+                .map(|(key, _)| key.clone())
+            {
+                self.cache.remove(&oldest);
+            }
         }
         self.cache.insert(
             (pkg.key.clone(), pkg.version.clone()),
             (Instant::now(), details),
         );
         self.cancel = None;
+        self.partial = None;
         true
     }
 
     pub fn get(&self, pkg: &InstalledPackage) -> Option<&SnapDetails> {
-        // Cache expiry is checked on opening; keep an already displayed result stable.
+        if let Some((key, version, details)) = &self.partial {
+            if key == &pkg.key && version == &pkg.version {
+                return Some(details);
+            }
+        }
+        // Expired complete results stay visible while a fresh inspection runs.
         self.cache
             .get(&(pkg.key.clone(), pkg.version.clone()))
             .map(|(_, details)| details)
@@ -108,6 +139,41 @@ mod tests {
     }
 
     #[test]
+    fn expired_cache_remains_visible_until_refresh_finishes() {
+        let mut state = SnapDetailState::default();
+        let pkg = InstalledPackage::new(PackageSource::Snap, "code");
+        let request = state.begin(&pkg).unwrap();
+        assert!(state.accept(request.generation, &pkg, details(), true));
+        state
+            .cache
+            .get_mut(&(pkg.key.clone(), pkg.version.clone()))
+            .unwrap()
+            .0 = Instant::now() - CACHE_TTL;
+        let refresh = state.begin(&pkg).unwrap();
+        assert!(state.get(&pkg).is_some());
+        let mut changed = details();
+        changed.items[0].size.bytes = Some(2);
+        assert!(!state.accept(refresh.generation, &pkg, changed.clone(), false));
+        assert_eq!(state.get(&pkg).unwrap().items[0].size.bytes, Some(1));
+        assert!(state.accept(refresh.generation, &pkg, changed, true));
+        assert_eq!(state.get(&pkg).unwrap().items[0].size.bytes, Some(2));
+    }
+
+    #[test]
+    fn partial_results_are_not_reused_after_canceling() {
+        let mut state = SnapDetailState::default();
+        let pkg = InstalledPackage::new(PackageSource::Snap, "code");
+        let request = state.begin(&pkg).unwrap();
+        assert!(state.accept(request.generation, &pkg, details(), false));
+        assert!(state.get(&pkg).is_some());
+        state.cancel();
+        assert!(state.get(&pkg).is_none());
+        let next = state.begin(&pkg).unwrap();
+        assert!(!state.accept(request.generation, &pkg, details(), true));
+        assert!(state.accept(next.generation, &pkg, details(), true));
+    }
+
+    #[test]
     fn late_results_cannot_replace_new_selection() {
         let mut state = SnapDetailState::default();
         let first = InstalledPackage::new(PackageSource::Snap, "code");
@@ -115,8 +181,8 @@ mod tests {
         let old = state.begin(&first).unwrap();
         let new = state.begin(&second).unwrap();
         assert!(old.cancel.load(Ordering::Relaxed));
-        assert!(!state.accept(old.generation, &first, details()));
-        assert!(state.accept(new.generation, &second, details()));
+        assert!(!state.accept(old.generation, &first, details(), true));
+        assert!(state.accept(new.generation, &second, details(), true));
         assert!(state.get(&first).is_none());
     }
 
@@ -126,9 +192,9 @@ mod tests {
         let pkg = InstalledPackage::new(PackageSource::Snap, "code");
         let request = state.begin(&pkg).unwrap();
         state.clear();
-        assert!(!state.accept(request.generation, &pkg, details()));
+        assert!(!state.accept(request.generation, &pkg, details(), true));
         let request = state.begin(&pkg).unwrap();
-        assert!(state.accept(request.generation, &pkg, details()));
+        assert!(state.accept(request.generation, &pkg, details(), true));
         assert!(state.begin(&pkg).is_none());
         state.clear();
         assert!(state.get(&pkg).is_none());
