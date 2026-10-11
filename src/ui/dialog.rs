@@ -33,7 +33,7 @@ pub(super) enum Dialog {
     Confirm {
         kind: OpKind,
         pkg: InstalledPackage,
-        plan: OperationPlan,
+        plan: Box<OperationPlan>,
     },
 }
 
@@ -260,8 +260,24 @@ fn confirm_body(
             ));
         }
     }
-    if pkg.source != PackageSource::Snap {
+    if pkg.source != PackageSource::Snap
+        && !crate::domain::tool_managers::is_tool_source(pkg.source)
+    {
         rows.push(("Size", theme::format_size(pkg.size_bytes)));
+    }
+
+    if let crate::domain::operations::OperationTarget::Tool { installation, .. } = &plan.target {
+        rows.push(("Installation", installation.root.display().to_string()));
+        if let Some(environment) = &installation.environment {
+            rows.push(("Environment", environment.display().to_string()));
+        }
+        if let Some(step) = plan.steps.first() {
+            rows.push(("Command", step.command_summary.clone()));
+            if kind == OpKind::Update {
+                rows.push(("Resolution", step.description.clone()));
+            }
+        }
+        rows.push(("Effects", installation.notes.join("\n\n")));
     }
 
     let confirm_style = match kind {

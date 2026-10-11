@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
-use super::{apt, flatpak, local, targets, DetailEffect, PackageDetails};
+use super::{apt, flatpak, local, targets, tools, DetailEffect, PackageDetails};
 use crate::domain::{
     listing,
     package::{InstalledPackage, PackageSource},
@@ -74,6 +74,11 @@ pub async fn inspect_progressive(
         return PackageDetails::unavailable("Inspection cancelled");
     }
     let discovery = match pkg.source {
+        PackageSource::Uv | PackageSource::Pipx | PackageSource::Cargo => {
+            tokio::task::spawn_blocking(move || tools::discover(&pkg))
+                .await
+                .unwrap_or_else(|_| Err(anyhow::anyhow!("Tool files could not be read")))
+        }
         PackageSource::Apt => apt::discover(&pkg).await,
         PackageSource::Flatpak => flatpak::discover(&pkg).await,
         PackageSource::AppImage | PackageSource::Desktop => {

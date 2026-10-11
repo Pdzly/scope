@@ -11,6 +11,9 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "lowercase")]
 pub enum PackageSource {
     Apt,
+    Uv,
+    Pipx,
+    Cargo,
     Snap,
     Flatpak,
     AppImage,
@@ -23,6 +26,9 @@ impl PackageSource {
     pub fn id(self) -> &'static str {
         match self {
             PackageSource::Apt => "apt",
+            PackageSource::Uv => "uv",
+            PackageSource::Pipx => "pipx",
+            PackageSource::Cargo => "cargo",
             PackageSource::Snap => "snap",
             PackageSource::Flatpak => "flatpak",
             PackageSource::AppImage => "appimage",
@@ -77,6 +83,12 @@ pub struct InstalledPackage {
     /// than one place, such as Flatpak user/system installations.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub install_scope: Option<InstallScope>,
+    /// Verified manager context; never reconstructed from a display name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_installation: Option<Box<crate::domain::tool_managers::ToolInstallation>>,
+    /// An unavailable update check or source-specific update limitation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub update_note: Option<String>,
     /// Canonical name shown when no desktop display name is available.
     pub name: String,
     /// Optional human-friendly display name from a `.desktop` entry.
@@ -129,6 +141,8 @@ impl InstalledPackage {
             source,
             package_id,
             install_scope: None,
+            tool_installation: None,
+            update_note: None,
             name: String::new(),
             display_name: None,
             description: None,
@@ -156,6 +170,8 @@ impl InstalledPackage {
             source,
             package_id,
             install_scope: Some(scope),
+            tool_installation: None,
+            update_note: None,
             name: String::new(),
             display_name: None,
             description: None,

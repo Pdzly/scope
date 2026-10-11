@@ -51,6 +51,30 @@ const PROBE_TIMEOUT: Duration = Duration::from_secs(10);
 /// tighter budget (see `scanner::snap`).
 const SNAP_PROBE_TIMEOUT: Duration = Duration::from_secs(8);
 
+/// Probe the full target; user tools require their captured manager context.
+pub async fn probe_target(plan: &super::OperationPlan) -> Result<ProbedPackage> {
+    if let super::OperationTarget::Tool {
+        package_id,
+        installation,
+    } = &plan.target
+    {
+        crate::domain::tool_managers::operations::verify(
+            package_id,
+            installation,
+            &plan.current_version,
+        )
+        .await?;
+        Ok(ProbedPackage::installed(Some(plan.current_version.clone())))
+    } else {
+        probe_package(
+            plan.target.source(),
+            plan.target.id(),
+            plan.target.install_scope(),
+        )
+        .await
+    }
+}
+
 /// Probe the current state of one package.
 ///
 /// `Err` means "could not verify" — callers must fail closed and refuse to
@@ -61,6 +85,9 @@ pub async fn probe_package(
     install_scope: Option<InstallScope>,
 ) -> Result<ProbedPackage> {
     match source {
+        PackageSource::Uv | PackageSource::Pipx | PackageSource::Cargo => {
+            anyhow::bail!("Tool probe requires recorded installation metadata.")
+        }
         PackageSource::Apt => probe_apt(package_id).await,
         PackageSource::Snap => probe_snap(package_id).await,
         PackageSource::Flatpak => probe_flatpak(package_id, install_scope).await,

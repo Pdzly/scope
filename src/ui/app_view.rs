@@ -304,7 +304,11 @@ impl ScopeApp {
                         .map(|plan| plan.plan_id.clone());
                     if this.operation.accept_preview(request, plan_id) && this.dialog.is_some() {
                         this.dialog = Some(match result {
-                            Ok(Ok(plan)) => Dialog::Confirm { kind, pkg, plan },
+                            Ok(Ok(plan)) => Dialog::Confirm {
+                                kind,
+                                pkg,
+                                plan: Box::new(plan),
+                            },
                             Ok(Err(message)) => Dialog::Failed { kind, pkg, message },
                             Err(_) => Dialog::Failed {
                                 kind,
@@ -672,6 +676,9 @@ impl ScopeApp {
             ("APT", availability.apt_error.as_ref()),
             ("Snap", availability.snap_error.as_ref()),
             ("Flatpak", availability.flatpak_error.as_ref()),
+            ("uv", availability.uv_error.as_ref()),
+            ("pipx", availability.pipx_error.as_ref()),
+            ("Cargo", availability.cargo_error.as_ref()),
         ]
         .into_iter()
         .filter_map(|(label, message)| message.map(|m| (label.to_string(), m.clone())))

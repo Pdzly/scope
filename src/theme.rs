@@ -13,6 +13,9 @@ use crate::domain::package::{InstalledPackage, PackageSource};
 
 pub fn source_color(source: PackageSource) -> Hsla {
     match source {
+        PackageSource::Uv => rgb(0x738d32),
+        PackageSource::Pipx => rgb(0x527ba1),
+        PackageSource::Cargo => rgb(0xb36c49),
         PackageSource::Apt => rgb(0xa1352c),
         PackageSource::Snap => rgb(0x2196f3),
         PackageSource::Flatpak => rgb(0x4a154b),
@@ -24,6 +27,9 @@ pub fn source_color(source: PackageSource) -> Hsla {
 
 pub fn source_label(source: PackageSource) -> &'static str {
     match source {
+        PackageSource::Uv => "uv",
+        PackageSource::Pipx => "pipx",
+        PackageSource::Cargo => "Cargo",
         PackageSource::Apt => "APT",
         PackageSource::Snap => "Snap",
         PackageSource::Flatpak => "Flatpak",
