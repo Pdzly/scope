@@ -1,6 +1,8 @@
 [Desktop Entry]
 Name=Scope
-Comment=See, update, and uninstall every app in one place
+GenericName=App Manager
+Comment=See, update, and uninstall every app on Linux in one place
+Keywords=apps;packages;uninstall;update;apt;snap;flatpak;appimage;
 Exec=scope-gpui
 Icon=scope
 Terminal=false

@@ -2,7 +2,7 @@
 name = "scope-gpui"
 version = "0.3.5"
 edition = "2021"
-description = "See, update, and uninstall Linux apps in one place"
+description = "Scope for Linux: see, update, and uninstall apps in one place"
 
 [[bin]]
 name = "scope-gpui"

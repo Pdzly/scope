@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/scope-logo.svg" alt="Scope logo" width="96" />
+  <img src="assets/scope-icon.svg" alt="Scope for Linux logo" width="96" />
 </p>
 
-<h1 align="center">Scope</h1>
+<h1 align="center">Scope for Linux</h1>
 
 <p align="center">Browse, update, and uninstall Linux apps in one place.</p>
 
@@ -12,7 +12,7 @@
   <a href="https://github.com/khurrambhutto/scope/issues">Report an issue</a>
 </p>
 
-Scope is a Linux desktop app written in Rust with GPUI. It combines installed apps and command-line tools into one searchable list, with package details and a confirmation preview before every update or uninstall. Ubuntu on x86-64 is the primary target.
+Scope for Linux is a desktop app written in Rust with GPUI. It combines installed apps and command-line tools into one searchable list, with package details and a confirmation preview before every update or uninstall. Ubuntu on x86-64 is the primary target.
 
 <p align="center">
   <img src="docs/image.png" alt="Scope app list with search and source filters" width="49%" />
