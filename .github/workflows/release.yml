@@ -82,11 +82,13 @@ jobs:
             "$PKGDIR/usr/share/doc/scope"
           cp target/release/scope-gpui "$PKGDIR/usr/bin/scope"
           chmod 755 "$PKGDIR/usr/bin/scope"
-          cp assets/scope-logo.svg "$PKGDIR/usr/share/icons/hicolor/scalable/apps/scope.svg"
+          cp assets/scope-icon.svg "$PKGDIR/usr/share/icons/hicolor/scalable/apps/scope.svg"
           cat > "$PKGDIR/usr/share/applications/scope.desktop" << 'EOF'
           [Desktop Entry]
           Name=Scope
-          Comment=See, update, and uninstall every app in one place
+          GenericName=App Manager
+          Comment=See, update, and uninstall every app on Linux in one place
+          Keywords=apps;packages;uninstall;update;apt;snap;flatpak;appimage;
           Exec=/usr/bin/scope
           Icon=scope
           Terminal=false
@@ -100,7 +102,7 @@ jobs:
           Priority: optional
           Architecture: amd64
           Maintainer: Scope Maintainers
-          Description: See, update, and uninstall every app on your Linux system in one place.
+          Description: Scope for Linux: see, update, and uninstall every app in one place.
            Unifies APT, Snap, Flatpak, and AppImage with preview-first operations.
           EOF
           echo "Scope ${VERSION}" > "$PKGDIR/usr/share/doc/scope/changelog"

@@ -1,6 +1,6 @@
-# Scope: Linux app manager, full text
+# Scope for Linux: full text
 
-Scope is a free, open-source Linux app manager. It lists apps installed through APT, Snap, Flatpak, and AppImage in one searchable list. Every update or uninstall starts with a plan that shows the exact commands. Scope runs them only after the user confirms. Written in Rust with Zed's GPUI, no webview. Ubuntu is the first target. Current version: 0.3.5. License: MIT. Source: https://github.com/khurrambhutto/scope
+Scope for Linux (also called Scope) is a free, open-source app manager. It lists apps installed through APT, Snap, Flatpak, and AppImage in one searchable list. Every update or uninstall starts with a plan that shows the exact commands. Scope runs them only after the user confirms. Written in Rust with Zed's GPUI, no webview. Ubuntu is the first target. Current version: 0.3.5. License: MIT. Source: https://github.com/khurrambhutto/scope
 
 ## What Scope does
 
@@ -76,7 +76,7 @@ Synaptic manages APT packages only. GNOME Software and KDE Discover are app stor
 
 ## Who made it
 
-Scope is built by Khurram Bhutto (https://khurrambhutto.tech/). Source and issues: https://github.com/khurrambhutto/scope.
+Scope is built by Khurram Bhutto (https://github.com/khurrambhutto). Source and issues: https://github.com/khurrambhutto/scope.
 
 ## FAQ
 

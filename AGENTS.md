@@ -56,7 +56,8 @@ src/                      GPUI app
     widgets.rs            banners, empty/loading states
     package_list_model.rs scan replacement and stable-key list behavior
     operation_controller.rs request identity and apply exclusivity
-assets/                   SVG icons (filter, refresh, logo, window controls)
+assets/                   SVG icons (filter, refresh, window controls), title-bar
+                          logo chip, app icon tile (scope-icon.svg, scope.png)
 docs/                     GitHub Pages site
 ```
 
@@ -68,6 +69,7 @@ docs/                     GitHub Pages site
 - Keep screens operational and app-like, never marketing pages.
 - Uninstall/update previews use a modal. Applying and results appear at the bottom only while an operation is active or has a dismissible result, so browsing stays available; only one package operation may apply at a time. There is no idle footer. The app count appears in the search bar only, and Show all sits to its right in the filter bar.
 - The title-bar hamburger opens Settings with app/version information, project links, issue reporting, and an explicit update check. Self-updates from Settings or the update notice require confirmation before installation; unsupported installations link to a download. Check failures stay distinct from an up-to-date result.
+- The brand mark is a single-colour pure red (`#e10600`) telescope with a white lens glint; `docs/scope-mark.svg` is its source of truth. `assets/scope-logo.svg` places it on a white disc for the title bar and site header, and `assets/scope-icon.svg` places it on a warm white tile for the installed app icon, README, favicon, and `assets/scope.png`. Public copy names the product "Scope for Linux" in titles, headings, metadata, and package descriptions; "Scope" alone is fine in running text.
 - UI colors come from `theme.rs`: dark red surfaces, burgundy borders, coral emphasis. Kit-owned controls use `theme::init`; actions share the pill button in `ui/widgets.rs`. Keep source colors confined to app icons and source indicators.
 - Package sources are exhaustive contracts: a `PackageSource` addition updates scanner registration, source availability/cache defaults, desktop ownership lookup, listing/filter/theme matches, safety, operation targets, probes, and update/uninstall handlers. Read-only sources must reject both operations in every route. All sources use the shared pill dropdown in `ui/filters.rs` and `ui/widgets.rs`. Its Others option groups discovery-only Steam, AppImage, and Desktop apps; AppImage and Desktop also retain their individual filters.
 - Use bundled Work Sans for all UI text, including paths and commands. Regular, Medium, Semibold, and Bold fonts and their OFL license live in `assets/fonts/`; `theme::init` registers them. Breakdown labels are semibold, paths are quieter, and sizes align right. Confirmation metadata shares the breakdown's label width, row padding, and spacing tokens in `theme.rs`.

@@ -1,71 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- Outer circle background (always white for contrast) -->
-  <circle cx="256" cy="256" r="220" fill="#ffffff" />
-
-  <!-- Outer circle ring (pure black, clean stroke) -->
-  <circle cx="256" cy="256" r="220" fill="none" stroke="#000000" stroke-width="16"/>
-
-  <!-- Telescope group rotated to match the original logo angle (~23 degrees) -->
-  <g transform="translate(256, 256) rotate(-23)">
-    
-    <!-- Segment 1: Eyepiece (Bottom-Left) -->
-    <path d="
-      M -140, -15
-      L -110, -15
-      A 7.5 15 0 0 0 -110 15
-      L -140, 15
-      A 7.5 15 0 0 1 -140 -15
-      Z
-    " fill="#000000"/>
-
-    <!-- Segment 2: Middle Barrel -->
-    <path d="
-      M -102, -22
-      A 11 22 0 0 0 -102 22
-      L 0, 38
-      A 19 38 0 0 1 0 -38
-      Z
-    " fill="#000000"/>
-
-    <!-- Segment 3: Front Objective Barrel -->
-    <path d="
-      M 10, -46
-      A 23 46 0 0 0 10 46
-      L 120, 64
-      A 32 64 0 0 0 120 -64
-      Z
-    " fill="#000000"/>
-
-    <!-- Front Lens Outer Rim (White ellipse inside the black front face) -->
-    <ellipse cx="120" cy="0" rx="26" ry="52" fill="#ffffff"/>
-
-    <!-- Front Lens Inner Hole (Black ellipse / Scope field of view) -->
-    <ellipse cx="120" cy="0" rx="20" ry="40" fill="#000000"/>
-
-    <!-- Target Reticle / Crosshair lines inside the scope -->
-    <line x1="104" y1="0" x2="110" y2="0" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"/>
-    <line x1="130" y1="0" x2="136" y2="0" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"/>
-    <line x1="120" y1="-28" x2="120" y2="-14" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"/>
-    <line x1="120" y1="14" x2="120" y2="28" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round"/>
-
-    <!-- Software Package Cube inside the target focus -->
-    <!-- White Cube Silhouette -->
-    <path d="
-      M 120, -8
-      L 127, -4
-      L 127, 4
-      L 120, 8
-      L 113, 4
-      L 113, -4
-      Z
-    " fill="#ffffff"/>
-    
-    <!-- Black Isometric Separation Lines (revealing the 3D cube faces) -->
-    <path d="
-      M 120, 0 L 120, -8
-      M 120, 0 L 113, 4
-      M 120, 0 L 127, 4
-    " stroke="#000000" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round"/>
-
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Scope for Linux</title>
+  <!-- Scope mark on a white disc (source of truth: docs/scope-mark.svg). -->
+  <circle cx="128" cy="128" r="128" fill="#ffffff"/>
+  <g transform="translate(128 128) scale(0.74) translate(-128 -124)">
+    <g fill="#e10600">
+      <g transform="translate(128 104) rotate(-22) translate(-118 0)">
+        <rect x="6" y="-6" width="28" height="12" rx="3"/>
+        <rect x="38" y="-11" width="18" height="22" rx="3"/>
+        <path d="M60 -15 C120 -17 150 -19 184 -21 L184 21 C150 19 120 17 60 15 Z"/>
+        <rect x="188" y="-25" width="40" height="50" rx="6"/>
+        <rect x="94" y="-33" width="44" height="9" rx="4.5"/>
+        <rect x="103" y="-26" width="4" height="10"/>
+        <rect x="125" y="-27" width="4" height="11"/>
+        <path d="M219 -15 Q223 0 219 15" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+      </g>
+      <circle cx="128" cy="113" r="9"/>
+      <path d="M121 116 h14 l3 20 h-20 z"/>
+    </g>
+    <g stroke="#e10600" stroke-linecap="round" fill="none">
+      <line x1="123" y1="136" x2="86" y2="222" stroke-width="7"/>
+      <line x1="133" y1="136" x2="170" y2="222" stroke-width="7"/>
+      <line x1="128" y1="136" x2="128" y2="206" stroke-width="5"/>
+      <line x1="107" y1="176" x2="149" y2="176" stroke-width="4"/>
+    </g>
   </g>
 </svg>
