@@ -1,5 +1,5 @@
 //! One typed command builder for tool previews and execution.
-use super::{home, inventory_recorded, validate, validate_name, ToolInstallation, UpdateRecipe};
+use super::{inventory_recorded, validate, validate_package_name, ToolInstallation, UpdateRecipe};
 use crate::domain::{
     operations::{Operation, OperationPlan, OperationResult, PlanStep},
     package::PackageSource,
@@ -20,7 +20,7 @@ pub fn command(
     operation: Operation,
     candidate: &str,
 ) -> Result<ToolCommand> {
-    validate_name(id)?;
+    validate_package_name(installation.source, id)?;
     let protection = crate::domain::safety::check_package(installation.source, id);
     if protection.protected {
         bail!("{}", protection.reason.unwrap_or_default());
@@ -30,6 +30,9 @@ pub fn command(
     }
     validate(installation)?;
     let mut args: Vec<String> = match (installation.source, operation) {
+        (PackageSource::Npm | PackageSource::Bun, _) => {
+            super::javascript_commands::command(id, installation, operation)?
+        }
         (PackageSource::Uv, Operation::Uninstall) => {
             vec!["tool".into(), "uninstall".into(), id.into()]
         }
@@ -172,6 +175,18 @@ pub fn steps(
             Operation::Update => format!("Upgrade '{id}' using its original {} installation settings. The manager resolves compatible versions when this command runs.", installation.source.id()),
         }, command_summary: command.summary,
     }, PlanStep { description: format!("Installation root: {}", installation.root.display()), command_summary: "User installation; no administrator authorization.".into() }];
+    if let UpdateRecipe::Javascript { bin, node, .. } = &installation.update {
+        steps.push(PlanStep {
+            description: format!("Global command directory: {}", bin.display()),
+            command_summary: String::new(),
+        });
+        if let Some(node) = node {
+            steps.push(PlanStep {
+                description: format!("Node runtime: {}", node.display()),
+                command_summary: String::new(),
+            });
+        }
+    }
     steps.extend(installation.notes.iter().map(|note| PlanStep {
         description: note.clone(),
         command_summary: String::new(),
@@ -184,6 +199,9 @@ pub async fn verify(id: &str, expected: &ToolInstallation, version: &str) -> Res
         .context("The tool manager is unavailable")?;
     if manager != expected.manager {
         bail!("The recorded tool manager changed. Rescan before continuing.");
+    }
+    if matches!(expected.source, PackageSource::Npm | PackageSource::Bun) {
+        super::javascript_safety::verify_context(expected).await?;
     }
     verify_metadata(id, expected, version).await
 }
@@ -222,7 +240,7 @@ pub async fn apply(
         verify(id, installation, &plan.current_version).await?;
         let recipe = command(id, installation, plan.operation, &plan.target_version)?;
         let mut cmd = tokio::process::Command::new(&recipe.program);
-        cmd.args(&recipe.args).envs(&installation.env).env("PIP_NO_INPUT", "1").env("GIT_TERMINAL_PROMPT", "0").current_dir(home()?);
+        cmd.args(&recipe.args).envs(&installation.env).env("PIP_NO_INPUT", "1").env("GIT_TERMINAL_PROMPT", "0").current_dir(super::working_directory(installation)?);
         // Builders may launch children. A dedicated group lets timeout stop those too.
         cmd.process_group(0);
         let timeout = if plan.operation == Operation::Update { Duration::from_secs(30 * 60) } else { Duration::from_secs(180) };

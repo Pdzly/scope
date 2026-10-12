@@ -5,6 +5,12 @@ use anyhow::{bail, Context, Result};
 
 pub(super) async fn check(packages: &mut [InstalledPackage]) -> Option<String> {
     packages.first()?;
+    for pkg in packages.iter_mut() {
+        let protection = crate::domain::safety::check_package(pkg.source, &pkg.package_id);
+        if protection.protected {
+            pkg.update_note = protection.reason;
+        }
+    }
     // Two network workers per source, with a deadline per query.
     let mut tasks = tokio::task::JoinSet::new();
     let mut completed = vec![false; packages.len()];
@@ -62,12 +68,18 @@ pub(super) async fn check(packages: &mut [InstalledPackage]) -> Option<String> {
 }
 
 async fn candidate(pkg: &InstalledPackage) -> Result<Option<String>> {
+    if crate::domain::safety::check_package(pkg.source, &pkg.package_id).protected {
+        return Ok(None);
+    }
     let installation = pkg
         .tool_installation
         .as_ref()
         .context("Tool installation missing")?;
     super::validate(installation)?;
     match &installation.update {
+        UpdateRecipe::Javascript { .. } => {
+            super::javascript_updates::candidate(pkg, installation).await
+        }
         UpdateRecipe::Pipx { .. } | UpdateRecipe::Uv { .. } => {
             super::python_updates::candidate(pkg, installation).await
         }

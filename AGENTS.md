@@ -1,6 +1,6 @@
 # Scope
 
-Linux desktop app that unifies installed packages and apps across APT, Snap, Flatpak, AppImage, and locally discovered Steam games into one list with preview-first uninstall and update for supported package-manager sources. Product story and install steps are in [README.md](README.md). Primary target is Ubuntu (`.deb` first).
+Linux desktop app that unifies installed packages and apps across APT, Snap, Flatpak, AppImage, locally discovered Steam games, and verified user tools from uv, pipx, Cargo, npm, and Bun into one list with preview-first uninstall and update for supported package-manager sources. Product story and install steps are in [README.md](README.md). Primary target is Ubuntu (`.deb` first).
 
 ## Stack
 
@@ -35,7 +35,7 @@ src/                      GPUI app
     system/               command execution, timeouts, pkexec
     snap_details/         read-only Snap revisions, snapshots and bounded data sizes
     package_details/      shared footprint DTOs, bounded measurement, and per-source inspection
-    tool_managers/        uv/pipx/Cargo receipts, rooted identity, update checks,
+    tool_managers/        uv/pipx/Cargo/npm/Bun receipts, rooted identity, update checks,
                           ownership validation, and shared preview/apply commands
     package.rs            InstalledPackage plus source/scope enums
   theme.rs                palette and formatting helpers
@@ -94,7 +94,8 @@ Scanner and list filters are deliberate product choices:
 - Snap hides runtimes and bases (`core*`, `snapd`, `bare`, `gtk-*`, `gnome-*`, `*-gtk3`). A matching visible `.desktop` entry classifies a snap as GUI/CLI according to its `Terminal` flag; a `/snap/bin/<snap-name>` command can classify it as CLI.
 - Flatpak scans user and system as separate installs. Keys are `flatpak:user:<id>` and `flatpak:system:<id>`, and the DTO's `install_scope` is the single source of truth for which scope every later command uses. Never re-guess scope at preview or apply time.
 - Missing Flatpak scope is an error at preview, probe, and apply. Never default it to system scope.
-- uv, pipx, and Cargo scans represent whole tool installations, not one row per exposed command. Stable keys include source, root hash, and manager package/environment name. Capture an absolute manager executable and explicit roots/environment in `ToolInstallation`; retain proxy basenames for Cargo and mise. Preview and apply use that context, not a fresh PATH or root guess. Manage only verified user-owned roots inside HOME, without pkexec.
+- uv, pipx, Cargo, npm, and Bun scans represent whole tool installations, not one row per exposed command. Stable keys include source, root hash, and manager package/environment name. Capture an absolute manager executable and explicit roots/environment in `ToolInstallation`; retain proxy basenames for Cargo and mise. Preview and apply use that context, not a fresh PATH or root guess. Manage only verified user-owned roots inside HOME, without pkexec.
+- npm and Bun scan only global installations for the currently selected manager, never project dependencies or a home-directory local `node_modules`. npm uses native global JSON inventory and its explicit prefix; Bun reads the configured global manifest and installed package manifests, never `bun pm ls -g`. Record npm's Node runtime and Bun's global package/bin directories. Scoped package names have source-specific validation; executable names remain strict. Reject conflicting/missing launchers, linked package directories, system-owned roots, and manager packages. Registry update checks use native npm `outdated` JSON and Bun `info <name>@<requirement> version --json`; preserve Bun constraints and trust, while explaining native npm global range loss. Detected Git/local/alias sources have unavailable registry updates. Revalidate global roots, runtime, settings, shared receipts, installed versions, and command ownership before apply. Inspect only the package's own directory; shared dependencies and caches stay unattributed.
 - uv scans persistent tool receipts, excluding uvx caches and project environments. Update checks use read-only `uv pip compile --no-build` with stored requirements, constraints, overrides, and options; apply uses native `uv tool upgrade`, preserving installation constraints. An unavailable resolution is not an up-to-date result.
 - pipx scans JSON metadata and retains suffixed environment identities and pip options. Updates upgrade the main package without requesting injected-package upgrades; dependency resolution and shared packaging maintenance still follow pipx behavior. Preview explains version-constraint removal and lists injected packages removed with the environment. Explicit pins block updates, not uninstall.
 - Cargo scans tracked binary crates, cross-checking `.crates2.json` build settings against `.crates.toml` ownership. Never infer installs from `cargo --list` or update them with `cargo update`. Rebuilds retain origin, version range, selected binaries, features, profile, and target, and never force overwrite. Git revisions are included in raw `version`, with the package release in `display_version`, so unchanged release labels still invalidate stale plans and details. Update discovery supports crates.io and tracked Git branches; fixed revisions remain fixed.
@@ -120,6 +121,8 @@ Commands that previews display and apply runs:
 | uv tool | `uv tool uninstall <pkg>` in the recorded tool/bin roots | `uv tool upgrade <pkg>` in those roots |
 | pipx user | `pipx uninstall <environment>` in the recorded home/bin/man roots | `pipx upgrade <environment>` with recorded pip options |
 | Cargo user | `cargo uninstall --root <root> <pkg>` | `cargo install --root <root>` with the original source and build settings |
+| npm global user | `npm uninstall --global --prefix <prefix> <pkg>` with the recorded Node runtime | `npm update --global --prefix <prefix> <pkg>` |
+| Bun global user | `bun remove --global <pkg>` in the recorded global/bin roots | `bun update --global <pkg>` in those roots |
 | AppImage | not supported yet — protected plan, no command runs | not supported yet — protected plan, no command runs |
 | Steam | none — read-only | none — use Open in Steam |
 
@@ -151,7 +154,7 @@ Ask first:
 
 ## Phase fence
 
-Done: unified package view, uninstall (preview + apply, all sources), update (preview + apply for APT/Snap/Flatpak and verified user uv/pipx/Cargo installs), self-updater. AppImage auto-update is an explicit stub.
+Done: unified package view, uninstall (preview + apply, all sources), update (preview + apply for APT/Snap/Flatpak and verified user uv/pipx/Cargo/npm/Bun installs), self-updater. AppImage auto-update is an explicit stub.
 
 Until updates are complete and tested, do not build whole-system clean, disk analyze, purge, leftover removal, or status dashboards. Those wait behind this fence.
 

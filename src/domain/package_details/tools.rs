@@ -15,7 +15,15 @@ pub(super) fn discover(pkg: &InstalledPackage) -> Result<Discovery> {
     let mut discovery = Discovery::default();
     if let Some(environment) = &installation.environment {
         discovery.add(
-            "Environment",
+            if matches!(
+                pkg.source,
+                crate::domain::package::PackageSource::Npm
+                    | crate::domain::package::PackageSource::Bun
+            ) {
+                "Package"
+            } else {
+                "Environment"
+            },
             environment.display().to_string(),
             DetailEffect::Removed,
             Target::Directory(environment.clone()),
@@ -41,6 +49,12 @@ pub(super) fn discover(pkg: &InstalledPackage) -> Result<Discovery> {
             DetailEffect::Removed,
             Target::OwnedFiles(installation.executables.clone()),
         );
+    }
+    if matches!(
+        pkg.source,
+        crate::domain::package::PackageSource::Npm | crate::domain::package::PackageSource::Bun
+    ) {
+        discovery.unknown("Shared dependencies", "Shared node_modules dependencies are not attributed to this package; removal effects depend on the manager");
     }
     discovery.unknown(
         "Shared data",

@@ -2,6 +2,11 @@
 //! Inventory, operations, and inspection share the same installation identity.
 
 mod cargo;
+mod javascript;
+mod javascript_commands;
+mod javascript_config;
+mod javascript_safety;
+mod javascript_updates;
 pub mod operations;
 mod pipx;
 mod python_updates;
@@ -59,13 +64,24 @@ pub enum UpdateRecipe {
         options: Vec<String>,
         version_req: Option<String>,
     },
+    Javascript {
+        package_name: String,
+        bin: PathBuf,
+        node: Option<PathBuf>,
+        requirement: String,
+        registry_source: bool,
+    },
     Unsupported(String),
 }
 
 pub fn is_tool_source(source: PackageSource) -> bool {
     matches!(
         source,
-        PackageSource::Uv | PackageSource::Pipx | PackageSource::Cargo
+        PackageSource::Uv
+            | PackageSource::Pipx
+            | PackageSource::Cargo
+            | PackageSource::Npm
+            | PackageSource::Bun
     )
 }
 
@@ -74,6 +90,8 @@ pub fn manager_name(source: PackageSource) -> &'static str {
         PackageSource::Uv => "uv",
         PackageSource::Pipx => "pipx",
         PackageSource::Cargo => "cargo",
+        PackageSource::Npm => "npm",
+        PackageSource::Bun => "bun",
         _ => "",
     }
 }
@@ -85,6 +103,9 @@ pub async fn inventory(source: PackageSource) -> Result<Vec<InstalledPackage>> {
         PackageSource::Uv => uv::inventory(manager, None).await,
         PackageSource::Pipx => pipx::inventory(manager, None).await,
         PackageSource::Cargo => cargo::inventory(manager, None).await,
+        PackageSource::Npm | PackageSource::Bun => {
+            javascript::inventory(source, manager, None).await
+        }
         _ => bail!("Not a tool manager"),
     }
 }
@@ -97,6 +118,14 @@ pub async fn inventory_recorded(installation: &ToolInstallation) -> Result<Vec<I
         }
         PackageSource::Cargo => {
             cargo::inventory(installation.manager.clone(), Some(installation)).await
+        }
+        PackageSource::Npm | PackageSource::Bun => {
+            javascript::inventory(
+                installation.source,
+                installation.manager.clone(),
+                Some(installation),
+            )
+            .await
         }
         _ => bail!("Not a tool manager"),
     }
@@ -113,7 +142,7 @@ pub(super) fn package(
     version: &str,
     mut installation: ToolInstallation,
 ) -> Result<InstalledPackage> {
-    validate_name(id)?;
+    validate_package_name(installation.source, id)?;
     let mut pkg = InstalledPackage::new(installation.source, id);
     pkg.key = format!(
         "{}:{}:{}",
@@ -207,7 +236,7 @@ pub(super) async fn query_installation(
         program.to_str().context("Executable path is not UTF-8")?,
         args,
         &envs,
-        Some(&home()?),
+        Some(&working_directory(installation)?),
         Duration::from_secs(30),
     )
     .await?;
@@ -217,7 +246,29 @@ pub(super) async fn query_installation(
     Ok(output.stdout)
 }
 
+pub(super) fn working_directory(installation: &ToolInstallation) -> Result<PathBuf> {
+    if installation.source == PackageSource::Bun {
+        Ok(installation.root.clone())
+    } else {
+        home()
+    }
+}
+
 #[cfg(test)]
 mod live_tests;
 #[cfg(test)]
 mod tests;
+
+/// JavaScript scopes are package identities, never executable path components.
+pub fn validate_package_name(source: PackageSource, name: &str) -> Result<()> {
+    if matches!(source, PackageSource::Npm | PackageSource::Bun) {
+        if let Some(scoped) = name.strip_prefix('@') {
+            let (scope, package) = scoped
+                .split_once('/')
+                .context("Invalid scoped package name")?;
+            validate_name(scope)?;
+            return validate_name(package);
+        }
+    }
+    validate_name(name)
+}

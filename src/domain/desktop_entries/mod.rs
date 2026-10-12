@@ -259,7 +259,9 @@ impl DesktopIndex {
             }
             crate::domain::package::PackageSource::Uv
             | crate::domain::package::PackageSource::Pipx
-            | crate::domain::package::PackageSource::Cargo => None,
+            | crate::domain::package::PackageSource::Cargo
+            | crate::domain::package::PackageSource::Npm
+            | crate::domain::package::PackageSource::Bun => None,
             crate::domain::package::PackageSource::Desktop => {
                 self.by_path.get(Path::new(package_id)).map(Arc::as_ref)
             }

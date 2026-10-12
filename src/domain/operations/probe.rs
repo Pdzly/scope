@@ -85,7 +85,11 @@ pub async fn probe_package(
     install_scope: Option<InstallScope>,
 ) -> Result<ProbedPackage> {
     match source {
-        PackageSource::Uv | PackageSource::Pipx | PackageSource::Cargo => {
+        PackageSource::Uv
+        | PackageSource::Pipx
+        | PackageSource::Cargo
+        | PackageSource::Npm
+        | PackageSource::Bun => {
             anyhow::bail!("Tool probe requires recorded installation metadata.")
         }
         PackageSource::Apt => probe_apt(package_id).await,
