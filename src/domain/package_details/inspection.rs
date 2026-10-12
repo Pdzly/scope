@@ -74,11 +74,13 @@ pub async fn inspect_progressive(
         return PackageDetails::unavailable("Inspection cancelled");
     }
     let discovery = match pkg.source {
-        PackageSource::Uv | PackageSource::Pipx | PackageSource::Cargo => {
-            tokio::task::spawn_blocking(move || tools::discover(&pkg))
-                .await
-                .unwrap_or_else(|_| Err(anyhow::anyhow!("Tool files could not be read")))
-        }
+        PackageSource::Uv
+        | PackageSource::Pipx
+        | PackageSource::Cargo
+        | PackageSource::Npm
+        | PackageSource::Bun => tokio::task::spawn_blocking(move || tools::discover(&pkg))
+            .await
+            .unwrap_or_else(|_| Err(anyhow::anyhow!("Tool files could not be read"))),
         PackageSource::Apt => apt::discover(&pkg).await,
         PackageSource::Flatpak => flatpak::discover(&pkg).await,
         PackageSource::AppImage | PackageSource::Desktop => {
@@ -122,6 +124,7 @@ mod tests {
                 label: "Application".into(),
                 location: None,
                 size: Measurement {
+                    status: Default::default(),
                     bytes: Some(123),
                     complete: true,
                     note: None,

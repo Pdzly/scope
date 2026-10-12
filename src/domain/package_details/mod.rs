@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 pub(crate) use inspection::inspection_permit;
 pub use inspection::{inspect_progressive, InspectionUpdate};
-pub use measurement::Measurement;
+pub use measurement::{Measurement, MeasurementStatus};
 
 pub const MEASURING_NOTE: &str = "Measuring…";
 
@@ -69,6 +69,7 @@ impl PackageDetails {
             }
         }
         Measurement {
+            status: Default::default(),
             bytes,
             complete: complete && bytes.is_some(),
             note: None,

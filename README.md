@@ -49,10 +49,17 @@ Switch to **Updates** to see available updates. **Show all** reveals the scanned
 | APT, Snap, Flatpak | Yes | Yes |
 | uv tools, pipx | Yes | Yes |
 | Cargo | Yes | Yes |
+| npm global, Bun global | Yes | Yes |
 | AppImage, unmanaged desktop launchers | Discovery only | Discovery only |
 | Steam games | Read-only | Open in Steam |
 
-APT scans manual installs; Snap and Flatpak exclude runtimes. Steam games are discovered from native and Flatpak Steam libraries; Scope is read-only and **Open in Steam** hands management to Steam. Tool management requires verified user-owned installations inside your home directory. Global pipx installs and untracked Cargo binaries are unsupported. Git/local Python sources and local/custom-registry Cargo sources have no automatic updates. Pins and supported installation constraints are respected; pipx upgrades may drop original version constraints. Shared caches, interpreters, toolchains, and personal data are kept.
+APT scans manual installs; Snap and Flatpak exclude runtimes. Steam games are discovered from native and Flatpak Steam libraries; Scope is read-only and **Open in Steam** hands management to Steam.
+
+Tool management requires verified user-owned installations inside your home directory. Global pipx installs and untracked Cargo binaries are unsupported. Git/local Python sources and local/custom-registry Cargo sources have no automatic updates. Pins and supported installation constraints are respected; pipx upgrades may drop original version constraints. Shared caches, interpreters, toolchains, and personal data are kept.
+
+npm and Bun scan global packages only, using the currently selected manager and its global root. Project and home-directory local dependencies are excluded. System-owned roots and conflicting command links are protected; npm, Bun, Node, and Corepack cannot be removed or updated through these tool operations. Bun updates preserve declared version ranges and existing script trust; npm global updates follow native npm registry behavior because global installs do not retain an original version range. Detected Git/local/linked/aliased JavaScript sources have no automatic registry updates.
+
+Tool footprint details stream sizes for uv/pipx environments, Cargo binaries, and npm/Bun package directories. Commands already included in those sizes are labelled Included. Retained shared data is not measured, and data the manager cannot attribute stays explicit. Large measurements remain bounded; `+` marks partial totals. Sizes describe installed footprints, not guaranteed freed space, especially when files share hard-linked storage.
 
 ## Build from source
 

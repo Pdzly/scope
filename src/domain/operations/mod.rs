@@ -53,7 +53,11 @@ pub enum OperationTarget {
 impl OperationTarget {
     pub fn from_package(package: &InstalledPackage) -> anyhow::Result<Self> {
         match package.source {
-            PackageSource::Uv | PackageSource::Pipx | PackageSource::Cargo => {
+            PackageSource::Uv
+            | PackageSource::Pipx
+            | PackageSource::Cargo
+            | PackageSource::Npm
+            | PackageSource::Bun => {
                 let installation = package.tool_installation.clone().ok_or_else(|| {
                     anyhow::anyhow!("Tool installation metadata missing. Rescan first.")
                 })?;

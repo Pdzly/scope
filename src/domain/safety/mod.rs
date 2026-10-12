@@ -37,10 +37,16 @@ impl Protection {
 /// backend-side and uses the canonical package id plus the source.
 pub fn check_package(source: PackageSource, package_id: &str) -> Protection {
     match source {
-        PackageSource::Uv | PackageSource::Pipx | PackageSource::Cargo => {
-            if crate::domain::tool_managers::validate_name(package_id).is_err() {
+        PackageSource::Uv
+        | PackageSource::Pipx
+        | PackageSource::Cargo
+        | PackageSource::Npm
+        | PackageSource::Bun => {
+            if crate::domain::tool_managers::validate_package_name(source, package_id).is_err() {
                 Protection::denied("Invalid tool name")
             } else if ["uv", "pipx", "cargo", "rustup", "scope", "scope-gpui"].contains(&package_id)
+                || (matches!(source, PackageSource::Npm | PackageSource::Bun)
+                    && ["npm", "bun", "node", "corepack", "npx"].contains(&package_id))
             {
                 Protection::denied("Package managers and Scope cannot be removed or replaced through this operation.")
             } else {

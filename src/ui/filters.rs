@@ -61,6 +61,8 @@ impl SourceFilter {
                     | PackageSource::Uv
                     | PackageSource::Pipx
                     | PackageSource::Cargo
+                    | PackageSource::Npm
+                    | PackageSource::Bun
             ),
         }
     }
@@ -279,6 +281,8 @@ mod tests {
             PackageSource::Uv,
             PackageSource::Pipx,
             PackageSource::Cargo,
+            PackageSource::Npm,
+            PackageSource::Bun,
             PackageSource::Steam,
             PackageSource::Desktop,
         ] {

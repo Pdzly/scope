@@ -9,6 +9,7 @@ mod tests {
             label: "Test item".into(),
             location: None,
             size: Measurement {
+                status: Default::default(),
                 bytes,
                 complete,
                 note: None,

@@ -127,6 +127,7 @@ mod tests {
                 label: "Revision 1".into(),
                 location: None,
                 size: crate::domain::package_details::Measurement {
+                    status: Default::default(),
                     bytes: Some(1),
                     complete: true,
                     note: None,

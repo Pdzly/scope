@@ -5,12 +5,20 @@ use anyhow::{bail, Context, Result};
 /// User ownership is checked before preview, apply, or footprint measurement.
 pub fn validate(installation: &ToolInstallation) -> Result<()> {
     use std::os::unix::fs::MetadataExt;
+    let javascript = matches!(
+        installation.source,
+        crate::domain::package::PackageSource::Npm | crate::domain::package::PackageSource::Bun
+    );
     let allowed: &[&str] = match installation.source {
         crate::domain::package::PackageSource::Uv => &["UV_TOOL_DIR", "UV_TOOL_BIN_DIR"],
         crate::domain::package::PackageSource::Pipx => {
             &["PIPX_HOME", "PIPX_BIN_DIR", "PIPX_MAN_DIR"]
         }
         crate::domain::package::PackageSource::Cargo => &["CARGO_HOME", "CARGO_INSTALL_ROOT"],
+        crate::domain::package::PackageSource::Npm => &["NPM_CONFIG_PREFIX", "PATH"],
+        crate::domain::package::PackageSource::Bun => {
+            &["BUN_INSTALL_GLOBAL_DIR", "BUN_INSTALL_BIN"]
+        }
         _ => bail!("Not a tool manager installation"),
     };
     if installation
@@ -23,6 +31,8 @@ pub fn validate(installation: &ToolInstallation) -> Result<()> {
     let root_key = match installation.source {
         crate::domain::package::PackageSource::Uv => "UV_TOOL_DIR",
         crate::domain::package::PackageSource::Pipx => "PIPX_HOME",
+        crate::domain::package::PackageSource::Npm => "NPM_CONFIG_PREFIX",
+        crate::domain::package::PackageSource::Bun => "BUN_INSTALL_GLOBAL_DIR",
         _ => "CARGO_INSTALL_ROOT",
     };
     if installation
@@ -90,9 +100,11 @@ pub fn validate(installation: &ToolInstallation) -> Result<()> {
         if let Ok(resolved) = executable.canonicalize() {
             let owns_manager = std::iter::once(installation.manager.clone())
                 .chain(
-                    ["uv", "pipx", "cargo", "rustup"]
-                        .iter()
-                        .filter_map(|name| crate::domain::system::resolve(name)),
+                    [
+                        "uv", "pipx", "cargo", "rustup", "npm", "bun", "node", "corepack",
+                    ]
+                    .iter()
+                    .filter_map(|name| crate::domain::system::resolve(name)),
                 )
                 .any(|manager| manager.canonicalize().ok().as_ref() == Some(&resolved));
             if owns_manager {
@@ -101,6 +113,9 @@ pub fn validate(installation: &ToolInstallation) -> Result<()> {
                 );
             }
         }
+    }
+    if javascript {
+        super::javascript_safety::validate(installation)?;
     }
     Ok(())
 }

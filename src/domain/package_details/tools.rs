@@ -1,7 +1,7 @@
 //! Measure attributable tool environments and binaries, excluding shared roots.
 use super::{
     targets::{Discovery, Target},
-    DetailEffect,
+    DetailEffect, Measurement, MeasurementStatus,
 };
 use crate::domain::{package::InstalledPackage, tool_managers};
 use anyhow::{Context, Result};
@@ -15,10 +15,18 @@ pub(super) fn discover(pkg: &InstalledPackage) -> Result<Discovery> {
     let mut discovery = Discovery::default();
     if let Some(environment) = &installation.environment {
         discovery.add(
-            "Environment",
+            if matches!(
+                pkg.source,
+                crate::domain::package::PackageSource::Npm
+                    | crate::domain::package::PackageSource::Bun
+            ) {
+                "Package"
+            } else {
+                "Environment"
+            },
             environment.display().to_string(),
             DetailEffect::Removed,
-            Target::Directory(environment.clone()),
+            Target::ToolDirectory(environment.clone()),
         );
         // Entry points are links/scripts into that measured environment; do not count their targets again.
         for path in &installation.executables {
@@ -26,7 +34,7 @@ pub(super) fn discover(pkg: &InstalledPackage) -> Result<Discovery> {
                 label: "Command".into(),
                 location: Some(path.display().to_string()),
                 effect: DetailEffect::Informational,
-                size: super::Measurement::unknown("Exposed command; environment measured above"),
+                size: Measurement::descriptive(MeasurementStatus::Included, "Command target included in the package or environment above; not counted twice"),
             });
         }
     } else {
@@ -39,16 +47,48 @@ pub(super) fn discover(pkg: &InstalledPackage) -> Result<Discovery> {
                 .collect::<Vec<_>>()
                 .join("\n"),
             DetailEffect::Removed,
-            Target::OwnedFiles(installation.executables.clone()),
+            Target::ToolFiles(installation.executables.clone()),
         );
     }
-    discovery.unknown(
+    if matches!(
+        pkg.source,
+        crate::domain::package::PackageSource::Npm | crate::domain::package::PackageSource::Bun
+    ) {
+        descriptive(&mut discovery, "Shared dependencies", DetailEffect::Informational, MeasurementStatus::Unattributed,
+            "Shared node_modules dependencies cannot be assigned to this package; the manager decides which are removed");
+    }
+    descriptive(
+        &mut discovery,
         "Shared data",
+        DetailEffect::Kept,
+        MeasurementStatus::NotMeasured,
         "Shared caches, interpreters, and toolchains are kept",
     );
-    discovery.unknown(
+    descriptive(
+        &mut discovery,
         "User data",
+        DetailEffect::Informational,
+        MeasurementStatus::Unattributed,
         "The tool receipt does not identify personal settings or app-created files",
     );
     Ok(discovery)
 }
+
+fn descriptive(
+    discovery: &mut Discovery,
+    label: &str,
+    effect: DetailEffect,
+    status: MeasurementStatus,
+    note: &str,
+) {
+    discovery.details.items.push(super::DetailItem {
+        label: label.into(),
+        location: None,
+        effect,
+        size: Measurement::descriptive(status, note),
+    });
+}
+
+#[cfg(test)]
+#[path = "tool_tests.rs"]
+mod tests;

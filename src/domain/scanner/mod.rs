@@ -178,6 +178,8 @@ fn scanners() -> Vec<Box<dyn Scanner>> {
         Box::new(tools::ToolScanner(PackageSource::Uv)),
         Box::new(tools::ToolScanner(PackageSource::Pipx)),
         Box::new(tools::ToolScanner(PackageSource::Cargo)),
+        Box::new(tools::ToolScanner(PackageSource::Npm)),
+        Box::new(tools::ToolScanner(PackageSource::Bun)),
     ]
 }
 
@@ -268,6 +270,14 @@ pub async fn scan_all() -> (Vec<InstalledPackage>, ScanAvailability) {
             PackageSource::Cargo => {
                 availability.cargo = outcome.available;
                 availability.cargo_error = outcome.error;
+            }
+            PackageSource::Npm => {
+                availability.npm = outcome.available;
+                availability.npm_error = outcome.error;
+            }
+            PackageSource::Bun => {
+                availability.bun = outcome.available;
+                availability.bun_error = outcome.error;
             }
             PackageSource::Desktop => {
                 // Unmanaged desktop apps are synthesized from visible launchers
@@ -383,6 +393,14 @@ pub struct ScanAvailability {
     pub pipx: bool,
     #[serde(default)]
     pub cargo: bool,
+    #[serde(default)]
+    pub npm: bool,
+    #[serde(default)]
+    pub bun: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub npm_error: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bun_error: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub uv_error: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

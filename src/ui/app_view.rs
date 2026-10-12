@@ -680,6 +680,8 @@ impl ScopeApp {
             ("uv", availability.uv_error.as_ref()),
             ("pipx", availability.pipx_error.as_ref()),
             ("Cargo", availability.cargo_error.as_ref()),
+            ("npm", availability.npm_error.as_ref()),
+            ("Bun", availability.bun_error.as_ref()),
         ]
         .into_iter()
         .filter_map(|(label, message)| message.map(|m| (label.to_string(), m.clone())))
