@@ -28,47 +28,39 @@ pub(super) enum ViewMode {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum SourceFilter {
     All,
-    Uv,
-    Pipx,
-    Cargo,
     Apt,
     Snap,
     Flatpak,
     AppImage,
-    Desktop,
     Others,
 }
 
 impl SourceFilter {
     pub(super) fn label(self) -> &'static str {
         match self {
-            SourceFilter::Uv => "uv",
-            SourceFilter::Pipx => "pipx",
-            SourceFilter::Cargo => "Cargo",
             SourceFilter::All => "Any source",
             SourceFilter::Apt => "APT",
             SourceFilter::Snap => "Snap",
             SourceFilter::Flatpak => "Flatpak",
             SourceFilter::AppImage => "AppImage",
-            SourceFilter::Desktop => "Desktop",
             SourceFilter::Others => "Others",
         }
     }
 
     pub(super) fn matches(self, source: PackageSource) -> bool {
         match self {
-            SourceFilter::Uv => source == PackageSource::Uv,
-            SourceFilter::Pipx => source == PackageSource::Pipx,
-            SourceFilter::Cargo => source == PackageSource::Cargo,
             SourceFilter::All => true,
             SourceFilter::Apt => source == PackageSource::Apt,
             SourceFilter::Snap => source == PackageSource::Snap,
             SourceFilter::Flatpak => source == PackageSource::Flatpak,
             SourceFilter::AppImage => source == PackageSource::AppImage,
-            SourceFilter::Desktop => source == PackageSource::Desktop,
             SourceFilter::Others => matches!(
                 source,
-                PackageSource::Steam | PackageSource::AppImage | PackageSource::Desktop
+                PackageSource::Steam
+                    | PackageSource::Desktop
+                    | PackageSource::Uv
+                    | PackageSource::Pipx
+                    | PackageSource::Cargo
             ),
         }
     }
@@ -215,11 +207,7 @@ impl ScopeApp {
                         (SourceFilter::Snap, "Snap"),
                         (SourceFilter::Flatpak, "Flatpak"),
                         (SourceFilter::AppImage, "AppImage"),
-                        (SourceFilter::Desktop, "Desktop"),
                         (SourceFilter::Others, "Others"),
-                        (SourceFilter::Uv, "uv"),
-                        (SourceFilter::Pipx, "pipx"),
-                        (SourceFilter::Cargo, "Cargo"),
                     ];
                     options
                         .into_iter()
@@ -287,11 +275,11 @@ mod tests {
         assert!(!SourceFilter::Flatpak.matches(PackageSource::Apt));
         assert!(SourceFilter::AppImage.matches(PackageSource::AppImage));
         assert!(!SourceFilter::AppImage.matches(PackageSource::Snap));
-        assert!(SourceFilter::Desktop.matches(PackageSource::Desktop));
-        assert!(!SourceFilter::Desktop.matches(PackageSource::Apt));
         for source in [
+            PackageSource::Uv,
+            PackageSource::Pipx,
+            PackageSource::Cargo,
             PackageSource::Steam,
-            PackageSource::AppImage,
             PackageSource::Desktop,
         ] {
             assert!(SourceFilter::Others.matches(source));
@@ -300,6 +288,7 @@ mod tests {
             PackageSource::Apt,
             PackageSource::Snap,
             PackageSource::Flatpak,
+            PackageSource::AppImage,
         ] {
             assert!(!SourceFilter::Others.matches(source));
         }

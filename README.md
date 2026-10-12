@@ -21,17 +21,17 @@ Scope for Linux is a desktop app written in Rust with GPUI. It combines installe
 
 ## Install
 
-Download the `.deb` or AppImage from [Releases](https://github.com/khurrambhutto/scope/releases). For the v0.3.5 `.deb`, run:
+Download the `.deb` or AppImage from [Releases](https://github.com/khurrambhutto/scope/releases). For the v0.3.6 `.deb`, run:
 
 ```bash
-sudo apt install ./scope_0.3.5_amd64.deb
+sudo apt install ./scope_0.3.6_amd64.deb
 ```
 
 For the portable AppImage:
 
 ```bash
-chmod +x Scope-0.3.5-x86_64.AppImage
-./Scope-0.3.5-x86_64.AppImage
+chmod +x Scope-0.3.6-x86_64.AppImage
+./Scope-0.3.6-x86_64.AppImage
 ```
 
 Official `.deb` builds support self-updates with signed checksum verification.
