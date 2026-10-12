@@ -182,39 +182,36 @@ pub(super) fn removal_summary(details: Option<&PackageDetails>) -> String {
 
 fn detail_row(item: &DetailItem) -> AnyElement {
     let pending = item.size.note.as_deref() == Some(crate::domain::package_details::MEASURING_NOTE);
-    let size = match item.size.bytes {
-        Some(bytes) if item.size.complete => measured_size(bytes),
-        Some(bytes) => format!("{}+", measured_size(bytes)),
-        None if pending => "Measuring…".into(),
-        None => "Unknown".into(),
-    };
+    let size = size_label(&item.size);
     let icon = match item.effect {
         DetailEffect::Removed | DetailEffect::Informational => None,
         DetailEffect::Kept => Some(IconName::Minus),
         DetailEffect::Unverified => Some(IconName::CircleAlert),
     };
-    let location = item
-        .location
-        .as_deref()
-        .unwrap_or("Not identified")
-        .to_owned();
-    let mut path = div().flex_1().min_w(px(0.)).flex().flex_col().child(
-        div()
-            .text_size(px(12.))
-            .line_height(px(18.))
-            .text_color(theme::text_dim())
-            .child(location),
-    );
-    if !item.size.complete && !pending {
-        if let Some(note) = &item.size.note {
-            path = path.child(
-                div()
-                    .text_size(px(11.))
-                    .line_height(px(16.))
-                    .text_color(theme::text_dim())
-                    .child(note.clone()),
-            );
-        }
+    let mut path = div().flex_1().min_w(px(0.)).flex().flex_col();
+    if let Some(location) = &item.location {
+        path = path.child(
+            div()
+                .text_size(px(12.))
+                .line_height(px(18.))
+                .text_color(theme::text_dim())
+                .child(location.clone()),
+        );
+    }
+    let note = item.size.note.as_ref().filter(|_| {
+        !pending
+            && (!item.size.complete
+                || item.size.status
+                    == crate::domain::package_details::MeasurementStatus::SharedStorage)
+    });
+    if let Some(note) = note {
+        path = path.child(
+            div()
+                .text_size(px(11.))
+                .line_height(px(16.))
+                .text_color(theme::text_dim())
+                .child(note.clone()),
+        );
     } else if item.effect == DetailEffect::Unverified {
         path = path.child(
             div()
@@ -265,6 +262,25 @@ fn detail_row(item: &DetailItem) -> AnyElement {
         .into_any_element()
 }
 
+fn size_label(size: &crate::domain::package_details::Measurement) -> String {
+    use crate::domain::package_details::MeasurementStatus;
+    match size.status {
+        MeasurementStatus::Included => "Included".into(),
+        MeasurementStatus::NotMeasured => "Not measured".into(),
+        MeasurementStatus::Unattributed => "Unattributed".into(),
+        MeasurementStatus::Size | MeasurementStatus::SharedStorage => match size.bytes {
+            Some(bytes) if size.complete => measured_size(bytes),
+            Some(bytes) => format!("{}+", measured_size(bytes)),
+            None if size.note.as_deref()
+                == Some(crate::domain::package_details::MEASURING_NOTE) =>
+            {
+                "Measuring…".into()
+            }
+            None => "Unavailable".into(),
+        },
+    }
+}
+
 fn measured_size(bytes: u64) -> String {
     if bytes == 0 {
         "0 B".into()
@@ -275,16 +291,68 @@ fn measured_size(bytes: u64) -> String {
 
 fn loading_labels(source: PackageSource) -> &'static [&'static str] {
     match source {
-        PackageSource::Uv | PackageSource::Pipx => &["Environment", "Commands", "User data"],
-        PackageSource::Cargo => &["Binaries", "User data"],
-        PackageSource::Npm | PackageSource::Bun => {
-            &["Package", "Commands", "Shared dependencies", "User data"]
+        PackageSource::Uv | PackageSource::Pipx => {
+            &["Environment", "Commands", "Shared data", "User data"]
         }
+        PackageSource::Cargo => &["Binaries", "Shared data", "User data"],
+        PackageSource::Npm | PackageSource::Bun => &[
+            "Package",
+            "Commands",
+            "Shared dependencies",
+            "Shared data",
+            "User data",
+        ],
         PackageSource::Snap => &["Application", "Older revisions", "User data", "System data"],
         PackageSource::Apt => &["Application", "Configuration", "User data"],
         PackageSource::Flatpak => &["Application", "User data"],
         PackageSource::AppImage => &["AppImage", "User data"],
         PackageSource::Desktop => &["Launcher", "Executable", "User data"],
         PackageSource::Steam => &["Game files", "User data"],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::package_details::{Measurement, MeasurementStatus};
+
+    #[test]
+    fn size_labels_distinguish_included_kept_unattributed_and_unavailable() {
+        for (status, label) in [
+            (MeasurementStatus::Included, "Included"),
+            (MeasurementStatus::NotMeasured, "Not measured"),
+            (MeasurementStatus::Unattributed, "Unattributed"),
+        ] {
+            assert_eq!(
+                size_label(&Measurement::descriptive(status, "explanation")),
+                label
+            );
+        }
+        assert_eq!(
+            size_label(&Measurement::unknown("Could not read files")),
+            "Unavailable"
+        );
+        assert_eq!(
+            size_label(&Measurement::unknown(
+                crate::domain::package_details::MEASURING_NOTE
+            )),
+            "Measuring…"
+        );
+        assert_eq!(
+            size_label(&Measurement {
+                status: MeasurementStatus::Size,
+                bytes: Some(0),
+                complete: true,
+                note: None
+            }),
+            "0 B"
+        );
+        assert!(size_label(&Measurement {
+            status: MeasurementStatus::Size,
+            bytes: Some(1024),
+            complete: false,
+            note: None
+        })
+        .ends_with('+'));
     }
 }

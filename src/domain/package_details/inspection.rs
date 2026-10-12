@@ -124,6 +124,7 @@ mod tests {
                 label: "Application".into(),
                 location: None,
                 size: Measurement {
+                    status: Default::default(),
                     bytes: Some(123),
                     complete: true,
                     note: None,

@@ -59,6 +59,8 @@ Tool management requires verified user-owned installations inside your home dire
 
 npm and Bun scan global packages only, using the currently selected manager and its global root. Project and home-directory local dependencies are excluded. System-owned roots and conflicting command links are protected; npm, Bun, Node, and Corepack cannot be removed or updated through these tool operations. Bun updates preserve declared version ranges and existing script trust; npm global updates follow native npm registry behavior because global installs do not retain an original version range. Detected Git/local/linked/aliased JavaScript sources have no automatic registry updates.
 
+Tool footprint details stream sizes for uv/pipx environments, Cargo binaries, and npm/Bun package directories. Commands already included in those sizes are labelled Included. Retained shared data is not measured, and data the manager cannot attribute stays explicit. Large measurements remain bounded; `+` marks partial totals. Sizes describe installed footprints, not guaranteed freed space, especially when files share hard-linked storage.
+
 ## Build from source
 
 Install Rust stable and the Linux dependencies, then run:

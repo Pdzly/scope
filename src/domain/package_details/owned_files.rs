@@ -25,16 +25,43 @@ impl Default for OwnedMeasurements {
 }
 
 impl OwnedMeasurements {
+    pub(super) fn tool() -> Self {
+        Self {
+            deadline: Instant::now() + super::measurement::TOOL_TIME_LIMIT,
+            remaining: super::measurement::TOOL_ENTRY_LIMIT,
+            ..Self::default()
+        }
+    }
+
     pub fn measure(&mut self, files: &[PathBuf], cancel: &AtomicBool) -> Measurement {
+        self.measure_progressive(files, cancel, |_| {})
+    }
+
+    pub(super) fn measure_progressive(
+        &mut self,
+        files: &[PathBuf],
+        cancel: &AtomicBool,
+        mut progress: impl FnMut(Measurement),
+    ) -> Measurement {
         let mut bytes = 0_u64;
         let mut complete = true;
         let mut known = false;
-        for path in files {
-            if cancel.load(Ordering::Relaxed)
-                || Instant::now() >= self.deadline
-                || self.remaining == 0
-            {
+        let mut note = None;
+        let mut hard_links = false;
+        let mut last_progress = Instant::now();
+        for (index, path) in files.iter().enumerate() {
+            let stopped = if cancel.load(Ordering::Relaxed) {
+                Some("Inspection cancelled before all owned files were measured")
+            } else if Instant::now() >= self.deadline {
+                Some("Owned-file measurement reached its time limit")
+            } else if self.remaining == 0 {
+                Some("Owned-file measurement reached its entry limit")
+            } else {
+                None
+            };
+            if let Some(stopped) = stopped {
                 complete = false;
+                note = Some(stopped.into());
                 break;
             }
             self.remaining -= 1;
@@ -42,6 +69,7 @@ impl OwnedMeasurements {
                 Ok(metadata) => metadata,
                 Err(_) => {
                     complete = false;
+                    note = Some("Some owned files could not be read".into());
                     continue;
                 }
             };
@@ -49,6 +77,7 @@ impl OwnedMeasurements {
                 continue;
             }
             known = true;
+            hard_links |= metadata.is_file() && metadata.nlink() > 1;
             if self.seen.insert((metadata.dev(), metadata.ino())) {
                 let Some(total) = metadata
                     .blocks()
@@ -59,11 +88,36 @@ impl OwnedMeasurements {
                 };
                 bytes = total;
             }
+            if index == 0
+                || (index % 256 == 0 && last_progress.elapsed() >= Duration::from_millis(100))
+            {
+                progress(Measurement {
+                    status: Default::default(),
+                    bytes: Some(bytes),
+                    complete: false,
+                    note: Some(super::MEASURING_NOTE.into()),
+                });
+                last_progress = Instant::now();
+            }
+        }
+        if hard_links {
+            let note = note.get_or_insert_with(String::new);
+            if !note.is_empty() {
+                note.push_str("; ");
+            }
+            note.push_str(
+                "Hard-linked files counted once; their storage may be retained elsewhere",
+            );
         }
         Measurement {
+            status: if hard_links {
+                super::MeasurementStatus::SharedStorage
+            } else {
+                super::MeasurementStatus::Size
+            },
             bytes: known.then_some(bytes),
             complete: known && complete,
-            note: (!complete).then(|| "Some package files could not be measured".into()),
+            note,
         }
     }
 }

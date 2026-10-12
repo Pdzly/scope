@@ -12,8 +12,10 @@ use super::{
 
 pub(super) enum Target {
     Directory(PathBuf),
+    ToolDirectory(PathBuf),
     File(PathBuf),
     OwnedFiles(Vec<PathBuf>),
+    ToolFiles(Vec<PathBuf>),
 }
 
 #[derive(Default)]
@@ -48,7 +50,15 @@ pub(super) fn measure(
     cancel: &AtomicBool,
     publish: &Publish,
 ) -> PackageDetails {
-    let mut owned = OwnedMeasurements::default();
+    let mut owned = if discovery
+        .targets
+        .iter()
+        .any(|(_, target)| matches!(target, Target::ToolFiles(_)))
+    {
+        OwnedMeasurements::tool()
+    } else {
+        OwnedMeasurements::default()
+    };
     if !cancel.load(Ordering::Relaxed) {
         publish(InspectionUpdate {
             details: discovery.details.clone(),
@@ -61,8 +71,32 @@ pub(super) fn measure(
         }
         discovery.details.items[index].size = match target {
             Target::Directory(path) => measurement::measure(&path, cancel),
+            Target::ToolDirectory(path) => {
+                let mut partial = discovery.details.clone();
+                measurement::measure_tool(&path, cancel, |size| {
+                    if !cancel.load(Ordering::Relaxed) {
+                        partial.items[index].size = size;
+                        publish(InspectionUpdate {
+                            details: partial.clone(),
+                            complete: false,
+                        });
+                    }
+                })
+            }
             Target::File(path) => measurement::file_size(&path),
             Target::OwnedFiles(paths) => owned.measure(&paths, cancel),
+            Target::ToolFiles(paths) => {
+                let mut partial = discovery.details.clone();
+                owned.measure_progressive(&paths, cancel, |size| {
+                    if !cancel.load(Ordering::Relaxed) {
+                        partial.items[index].size = size;
+                        publish(InspectionUpdate {
+                            details: partial.clone(),
+                            complete: false,
+                        });
+                    }
+                })
+            }
         };
         if !cancel.load(Ordering::Relaxed) {
             publish(InspectionUpdate {

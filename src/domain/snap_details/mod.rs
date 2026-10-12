@@ -59,6 +59,7 @@ fn valid_name(name: &str) -> bool {
 
 fn manager_size(bytes: Option<u64>) -> Measurement {
     Measurement {
+        status: Default::default(),
         bytes,
         complete: bytes.is_some(),
         note: Some("Snap-reported size".into()),
