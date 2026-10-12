@@ -95,6 +95,9 @@ pub async fn probe_package(
         PackageSource::Desktop => {
             anyhow::bail!("Desktop-launched apps are not managed by a supported package manager.")
         }
+        PackageSource::Steam => {
+            anyhow::bail!("Steam items are read-only in Scope. Manage updates in Steam.")
+        }
     }
 }
 
@@ -333,5 +336,12 @@ mod tests {
         assert!(!is_snap_not_installed(
             "error: cannot communicate with server"
         ));
+    }
+
+    #[test]
+    fn steam_probe_fails_closed() {
+        assert!(
+            futures::executor::block_on(probe_package(PackageSource::Steam, "570", None,)).is_err()
+        );
     }
 }

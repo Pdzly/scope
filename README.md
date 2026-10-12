@@ -12,7 +12,7 @@
   <a href="https://github.com/khurrambhutto/scope/issues">Report an issue</a>
 </p>
 
-Scope for Linux is a desktop app written in Rust with GPUI. It combines installed apps and command-line tools into one searchable list, with package details and a confirmation preview before every update or uninstall. Ubuntu on x86-64 is the primary target.
+Scope for Linux is a desktop app written in Rust with GPUI. It combines installed apps, command-line tools, and locally installed Steam games into one searchable list, with package details and a confirmation preview before every update or uninstall. Ubuntu on x86-64 is the primary target.
 
 <p align="center">
   <img src="docs/image.png" alt="Scope app list with search and source filters" width="49%" />
@@ -50,8 +50,9 @@ Switch to **Updates** to see available updates. **Show all** reveals the scanned
 | uv tools, pipx | Yes | Yes |
 | Cargo | Yes | Yes |
 | AppImage, unmanaged desktop launchers | Discovery only | Discovery only |
+| Steam games | Read-only | Open in Steam |
 
-APT scans manual installs; Snap and Flatpak exclude runtimes. Tool management requires verified user-owned installations inside your home directory. Global pipx installs and untracked Cargo binaries are unsupported. Git/local Python sources and local/custom-registry Cargo sources have no automatic updates. Pins and supported installation constraints are respected; pipx upgrades may drop original version constraints. Shared caches, interpreters, toolchains, and personal data are kept.
+APT scans manual installs; Snap and Flatpak exclude runtimes. Steam games are discovered from native and Flatpak Steam libraries; Scope is read-only and **Open in Steam** hands management to Steam. Tool management requires verified user-owned installations inside your home directory. Global pipx installs and untracked Cargo binaries are unsupported. Git/local Python sources and local/custom-registry Cargo sources have no automatic updates. Pins and supported installation constraints are respected; pipx upgrades may drop original version constraints. Shared caches, interpreters, toolchains, and personal data are kept.
 
 ## Build from source
 
@@ -64,6 +65,7 @@ git clone https://github.com/khurrambhutto/scope.git
 cd scope
 cargo run
 ```
+
 
 ## Contributing
 

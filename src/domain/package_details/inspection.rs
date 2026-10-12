@@ -86,6 +86,15 @@ pub async fn inspect_progressive(
                 .await
                 .unwrap_or_else(|_| Err(anyhow::anyhow!("Local files could not be read")))
         }
+        PackageSource::Steam => {
+            let mut discovery = targets::Discovery::default();
+            discovery.unknown(
+                "Game files",
+                "Steam game footprints are not inspected by Scope",
+            );
+            discovery.unknown("User data", "Steam manages game data and saves");
+            Ok(discovery)
+        }
         PackageSource::Snap => unreachable!("Snap inspection dispatched above"),
     };
     let discovery = match discovery {
@@ -123,6 +132,18 @@ mod tests {
         };
         let details = normalize(details, false);
         assert_eq!(details.items[0].effect, DetailEffect::Informational);
+        assert_eq!(details.removal_size().bytes, None);
+    }
+
+    #[tokio::test]
+    async fn steam_details_are_informational_and_do_not_claim_removal() {
+        let pkg = InstalledPackage::new(PackageSource::Steam, "570");
+        let details = inspect_progressive(pkg, Arc::new(AtomicBool::new(false)), |_| {}).await;
+        assert_eq!(details.items.len(), 2);
+        assert!(details
+            .items
+            .iter()
+            .all(|item| item.effect == DetailEffect::Informational && item.size.bytes.is_none()));
         assert_eq!(details.removal_size().bytes, None);
     }
 

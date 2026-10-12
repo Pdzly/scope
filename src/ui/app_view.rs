@@ -676,6 +676,7 @@ impl ScopeApp {
             ("APT", availability.apt_error.as_ref()),
             ("Snap", availability.snap_error.as_ref()),
             ("Flatpak", availability.flatpak_error.as_ref()),
+            ("Steam", availability.steam_error.as_ref()),
             ("uv", availability.uv_error.as_ref()),
             ("pipx", availability.pipx_error.as_ref()),
             ("Cargo", availability.cargo_error.as_ref()),
